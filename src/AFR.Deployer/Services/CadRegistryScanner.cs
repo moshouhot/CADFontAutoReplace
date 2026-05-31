@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.RegularExpressions;
 using AFR.Deployer.Models;
 using Microsoft.Win32;
@@ -12,6 +13,8 @@ namespace AFR.Deployer.Services;
 /// </summary>
 internal static partial class CadRegistryScanner
 {
+    private const string AcadLocationValueName = "AcadLocation";
+
     /// <summary>AutoCAD 配置文件子键的匹配模式，对所有 AutoCAD 版本通用。</summary>
     [GeneratedRegex(@"^ACAD-[A-Za-z0-9]+:[A-Za-z0-9]+$")]
     private static partial Regex ProfilePattern();
@@ -19,10 +22,11 @@ internal static partial class CadRegistryScanner
     /// <summary>
     /// 扫描注册表，返回所有受支持 CAD 版本的条目列表（按品牌 → 版本排序）。
     /// <para>
-    /// 无论本机是否安装某个受支持版本，<see cref="CadDescriptors.All"/> 中的每个版本至少返回
-    /// 一条记录：已安装则聚合其全部配置文件子键，未安装则返回单条占位条目
-    /// （<see cref="CadInstallation.IsCadInstalled"/> 为 false）。这样 UI 可以列出全部支持版本，
-    /// 并对未安装的版本禁用操作。
+    /// 只有在找到匹配的 AutoCAD 配置文件子键，且该子键能解析出有效的
+    /// <c>AcadLocation</c> 并定位到真实的 <c>acad.exe</c> 时，才认为该版本已安装。
+    /// 这样可以避免旧的注册表残留把已卸载的版本误判为“已安装”。
+    /// <see cref="CadDescriptors.All"/> 中未安装的版本仍返回占位条目，
+    /// 以便 UI 列出所有支持版本并禁用对应操作。
     /// </para>
     /// </summary>
     internal static IReadOnlyList<CadInstallation> Scan()
@@ -113,11 +117,55 @@ internal static partial class CadRegistryScanner
 
             return [.. baseKey.GetSubKeyNames()
                                .Where(name => ProfilePattern().IsMatch(name))
+                               .Where(name => HasValidInstallation(basePath, name))
                                .OrderBy(name => name)];
         }
         catch
         {
             return [];
+        }
+    }
+
+    /// <summary>
+    /// 只有当配置文件子键能解析出有效安装目录并找到 <c>acad.exe</c> 时，才认为该条目代表真实安装。
+    /// </summary>
+    private static bool HasValidInstallation(string basePath, string profileSubKey)
+    {
+        var subPath = $@"{basePath}\{profileSubKey}";
+
+        var acadLocation = ReadString(Registry.LocalMachine, subPath, AcadLocationValueName)
+                        ?? ReadString(Registry.CurrentUser, subPath, AcadLocationValueName);
+
+        if (string.IsNullOrWhiteSpace(acadLocation))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!Directory.Exists(acadLocation))
+            {
+                return false;
+            }
+
+            return File.Exists(Path.Combine(acadLocation, "acad.exe"));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string? ReadString(RegistryKey root, string subKey, string valueName)
+    {
+        try
+        {
+            using var key = root.OpenSubKey(subKey, false);
+            return key?.GetValue(valueName) as string;
+        }
+        catch
+        {
+            return null;
         }
     }
 }
