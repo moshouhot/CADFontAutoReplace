@@ -20,7 +20,9 @@ src/AFR.UI                WPF 窗口与 ViewModel
 src/AFR.HostIntegration   部署器与插件共用的字体释放、AWS 弹窗抑制能力
 src/AFR.Polyfills         旧 .NET Framework 版本壳兼容补丁
 src/AFR.AutoCAD           AutoCAD 命令、字体检测替换、Hook 和执行编排
-src/AutoCAD/AFR-ACAD20XX  各 AutoCAD 版本壳工程
+src/AutoCAD/AFR-ACAD2013-2024  AutoCAD 2013-2024 合并版本壳（net48）
+src/AutoCAD/AFR-ACAD2025-2026  AutoCAD 2025-2026 合并版本壳（net8.0-windows）
+src/AutoCAD/AFR-ACAD2027       AutoCAD 2027 版本壳（net10.0-windows）
 src/AFR.Deployer          部署器
 tools                     发布脚本
 docs                      使用与开发文档
@@ -29,10 +31,12 @@ docs                      使用与开发文档
 依赖方向保持：
 
 ```text
-AFR.Core -> AFR.UI -> AFR.AutoCAD -> AFR-ACAD20XX
+AFR.Core -> AFR.UI -> AFR.AutoCAD -> AFR-ACAD20XX/合并版本壳
 ```
 
 `AFR.Core` 与 `AFR.UI` 不引用 AutoCAD SDK；AutoCAD 相关类型留在 `AFR.AutoCAD` 和版本壳中。
+
+合并版本壳通过 `RuntimeAutoCadPlatform` 在启动时读取 `ACADVER`，再选择对应注册表路径、`acdb*.dll` 和已验证 Hook profile。AutoCAD 2013-2017 目前缺少 native Hook profile，默认关闭 native Hook，仅保留样式表检测与写回路径。
 
 ## 执行流程
 

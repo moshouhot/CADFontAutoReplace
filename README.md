@@ -4,7 +4,7 @@
 **减少缺失字体导致的文字不显示、乱码和反复手动指定字体**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE.txt)
-[![AutoCAD](https://img.shields.io/badge/AutoCAD-2018%E2%80%932027-red.svg)](#-已支持版本)
+[![AutoCAD](https://img.shields.io/badge/AutoCAD-2013%E2%80%932027-red.svg)](#-已支持版本)
 [![.NET](https://img.shields.io/badge/.NET-4.6.2%20%7C%204.7.2%20%7C%204.8%20%7C%208.0%20%7C%2010.0-purple.svg)](https://dotnet.microsoft.com/)
 
 [GitHub](https://github.com/splrad/CADFontAutoReplace) · [Gitee（国内镜像）](https://gitee.com/splrad/CADFontAutoReplace) · [Releases](https://github.com/splrad/CADFontAutoReplace/releases) · [提交 Issue](https://github.com/splrad/CADFontAutoReplace/issues)
@@ -19,7 +19,7 @@
 
 - **缺失字体自动替换**：AFR 会自动处理图纸中的缺失字体，避免打开图纸因为字体问题造成字符显示不全或乱码。
 - **字体缺失场景全覆盖**：同时处理 SHX 主字体、SHX 大字体、TrueType 字体，以及多行文字中的内联字体缺失。
-- **安装和卸载无残留**：部署工具/单DLL会自动识别 AutoCAD 2018–2027，完成安装、卸载、字体释放和插件状态检查全流程。
+- **安装和卸载无残留**：部署工具/单DLL会自动识别 AutoCAD 2013–2027，完成安装、卸载、字体释放和插件状态检查全流程。
 - **支持人工复核**：通过 `AFRLOG` 查看每个缺失字体的替换情况，并对当前图纸逐条或批量调整。
 
 ---
@@ -50,7 +50,7 @@
 部署工具是推荐方式；如果只需要单 DLL 场景（例如维护、测试、受限环境），可以手动 `NETLOAD`：
 
 1. 在 [Releases](https://github.com/splrad/CADFontAutoReplace/releases) 下载 `AFR-DLL_vX.Y.Z.zip` 并解压。
-2. 按 AutoCAD 版本选择对应 DLL，例如 AutoCAD 2026 使用 `AFR-ACAD2026.dll`。
+2. 按 AutoCAD 版本选择对应 DLL，例如 AutoCAD 2013–2024 使用 `AFR-ACAD2013-2024.dll`，AutoCAD 2025–2026 使用 `AFR-ACAD2025-2026.dll`，AutoCAD 2027 使用 `AFR-ACAD2027.dll`。
 3. 在 AutoCAD 命令行输入 `NETLOAD`，选择该 DLL。
 4. 首次 `NETLOAD` 会完成默认字体部署、配置初始化与自动加载注册；按命令行提示重启 AutoCAD 后生效。
 
@@ -126,15 +126,8 @@ AFR 缺失字体自动替换 v9.1.0
 
 | CAD 版本 | DLL 文件名 | .NET |
 |:---:|:---:|:---:|
-| AutoCAD **2018**（R22.0） | `AFR-ACAD2018.dll` | .NET Framework 4.6.2 |
-| AutoCAD **2019**（R23.0） | `AFR-ACAD2019.dll` | .NET Framework 4.7.2 |
-| AutoCAD **2020**（R23.1） | `AFR-ACAD2020.dll` | .NET Framework 4.7.2 |
-| AutoCAD **2021**（R24.0） | `AFR-ACAD2021.dll` | .NET Framework 4.8 |
-| AutoCAD **2022**（R24.1） | `AFR-ACAD2022.dll` | .NET Framework 4.8 |
-| AutoCAD **2023**（R24.2） | `AFR-ACAD2023.dll` | .NET Framework 4.8 |
-| AutoCAD **2024**（R24.3） | `AFR-ACAD2024.dll` | .NET Framework 4.8 |
-| AutoCAD **2025**（R25.0） | `AFR-ACAD2025.dll` | .NET 8.0 |
-| AutoCAD **2026**（R25.1） | `AFR-ACAD2026.dll` | .NET 8.0 |
+| AutoCAD **2013–2024**（R19.0–R24.3） | `AFR-ACAD2013-2024.dll` | .NET Framework 4.8 |
+| AutoCAD **2025–2026**（R25.0–R25.1） | `AFR-ACAD2025-2026.dll` | .NET 8.0 |
 | AutoCAD **2027**（R26.0） | `AFR-ACAD2027.dll` | .NET 10.0 |
 
 ---

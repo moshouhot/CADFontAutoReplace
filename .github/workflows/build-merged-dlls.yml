@@ -1,0 +1,45 @@
+name: Build merged DLLs
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - Version.props
+      - chore/Fonts.zip
+      - tools/Publish-ReleaseAssets.ps1
+      - src/**
+      - .github/workflows/build-merged-dlls.yml
+
+jobs:
+  build:
+    name: Build merged AutoCAD DLL assets
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Show .NET SDK
+        shell: pwsh
+        run: |
+          dotnet --version
+          dotnet --list-sdks
+
+      - name: Build release assets
+        shell: pwsh
+        run: ./tools/Publish-ReleaseAssets.ps1
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: AFR-merged-release-assets
+          path: artifacts/ReleaseAssets/*
+          if-no-files-found: error

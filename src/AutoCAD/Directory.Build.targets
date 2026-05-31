@@ -25,26 +25,35 @@
   -->
   <Target Name="EmitCadDescriptorJson"
           AfterTargets="Build"
-          Condition="'$(Configuration)' == 'Release' and '$(CadBrand)' != '' and '$(CadVersion)' != '' and '$(CadRegistryBasePath)' != ''">
+          Condition="'$(Configuration)' == 'Release' and '$(CadBrand)' != ''">
+    <ItemGroup>
+      <CadDescriptor Include="$(CadVersion)"
+                     Condition="'@(CadDescriptor)' == '' and '$(CadVersion)' != '' and '$(CadRegistryBasePath)' != ''">
+        <RegistryBasePath>$(CadRegistryBasePath)</RegistryBasePath>
+      </CadDescriptor>
+    </ItemGroup>
     <PropertyGroup>
       <_CadDescriptorAppName>$(MSBuildProjectName)</_CadDescriptorAppName>
-      <_CadDescriptorDisplayName>$(CadBrand) $(CadVersion)</_CadDescriptorDisplayName>
-      <_CadDescriptorRegistryEscaped>$([System.String]::Copy('$(CadRegistryBasePath)').Replace('\','\\'))</_CadDescriptorRegistryEscaped>
-      <_CadDescriptorJsonPath>$(TargetDir)$(_CadDescriptorAppName).cad.json</_CadDescriptorJsonPath>
-      <_CadDescriptorJson>{
-  "brand": "$(CadBrand)",
-  "version": "$(CadVersion)",
-  "displayName": "$(_CadDescriptorDisplayName)",
-  "registryBasePath": "$(_CadDescriptorRegistryEscaped)",
-  "appName": "$(_CadDescriptorAppName)",
-  "embeddedResourceKey": "AFR.Deployer.Resources.$(_CadDescriptorAppName).dll"
-}</_CadDescriptorJson>
+      <_CadDescriptorResourceKey>AFR.Deployer.Resources.$(_CadDescriptorAppName).dll</_CadDescriptorResourceKey>
     </PropertyGroup>
+    <ItemGroup>
+      <_CadDescriptorJson Include="@(CadDescriptor)">
+        <JsonPath>$(TargetDir)$(_CadDescriptorAppName)-%(CadDescriptor.Identity).cad.json</JsonPath>
+        <JsonText>{
+  "brand": "$(CadBrand)",
+  "version": "%(CadDescriptor.Identity)",
+  "displayName": "$(CadBrand) %(CadDescriptor.Identity)",
+  "registryBasePath": "$([System.String]::Copy('%(CadDescriptor.RegistryBasePath)').Replace('\','\\'))",
+  "appName": "$(_CadDescriptorAppName)",
+  "embeddedResourceKey": "$(_CadDescriptorResourceKey)"
+}</JsonText>
+      </_CadDescriptorJson>
+    </ItemGroup>
     <MakeDir Directories="$(TargetDir)" />
-    <WriteLinesToFile File="$(_CadDescriptorJsonPath)"
-                      Lines="$(_CadDescriptorJson)"
+    <WriteLinesToFile File="%(_CadDescriptorJson.JsonPath)"
+                      Lines="%(_CadDescriptorJson.JsonText)"
                       Overwrite="true"
                       Encoding="UTF-8" />
-    <Message Importance="High" Text="[CAD Descriptor] 已生成 $(_CadDescriptorAppName).cad.json" />
+    <Message Importance="High" Text="[CAD Descriptor] 已生成 %(_CadDescriptorJson.JsonPath)" />
   </Target>
 </Project>

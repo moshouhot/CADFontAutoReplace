@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>AFR</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Platforms>AnyCPU;x64</Platforms>
+    <CadBrand>AutoCAD</CadBrand>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <CadDescriptor Include="2025">
+      <RegistryBasePath>Software\Autodesk\AutoCAD\R25.0</RegistryBasePath>
+    </CadDescriptor>
+    <CadDescriptor Include="2026">
+      <RegistryBasePath>Software\Autodesk\AutoCAD\R25.1</RegistryBasePath>
+    </CadDescriptor>
+  </ItemGroup>
+
+  <Import Project="..\..\AFR.Core\AFR.Core.projitems" Label="Shared" />
+  <Import Project="..\..\AFR.UI\AFR.UI.projitems" Label="Shared" />
+  <Import Project="..\AFR.AutoCAD\AFR.AutoCAD.projitems" Label="Shared" />
+  <Import Project="..\..\AFR.HostIntegration\AFR.HostIntegration.projitems" Label="Shared" />
+
+  <ItemGroup>
+    <PackageReference Include="AutoCAD.NET" Version="25.1.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

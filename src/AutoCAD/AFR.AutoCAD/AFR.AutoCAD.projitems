@@ -26,6 +26,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Hosting\DocumentContextManager.cs" Link="Hosting\DocumentContextManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Hosting\ExecutionController.cs" Link="Hosting\ExecutionController.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Hosting\PluginEntryBase.cs" Link="Hosting\PluginEntryBase.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Hosting\RuntimeAutoCadPlatform.cs" Link="Hosting\RuntimeAutoCadPlatform.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\AutoCadFontScanner.cs" Link="Services\AutoCadFontScanner.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\CadEnvironmentSettings.cs" Link="Services\CadEnvironmentSettings.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\FontDetectionContext.cs" Link="Services\FontDetectionContext.cs" />

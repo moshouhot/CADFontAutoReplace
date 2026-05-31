@@ -73,6 +73,12 @@
   </Folder>
 
   <Folder Name="/AutoCAD/Versions/">
+    <Project Path="src/AutoCAD/AFR-ACAD2013-2024/AFR-ACAD2013-2024.csproj" Id="33c1b9d9-51a8-45e3-9859-d4f28f7f1324">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/AutoCAD/AFR-ACAD2025-2026/AFR-ACAD2025-2026.csproj" Id="9eea35ea-8d14-4ef3-88c0-e27ffdd59adc">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/AutoCAD/AFR-ACAD2018/AFR-ACAD2018.csproj" Id="7ab78a85-217e-46d8-bc9c-cebe7062e697">
       <Platform Project="x64" />
     </Project>

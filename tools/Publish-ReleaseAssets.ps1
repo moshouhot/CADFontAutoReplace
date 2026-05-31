@@ -47,7 +47,7 @@ $PublishOutput  = Join-Path $RepoRoot "publish\AFR.Deployer"
 $VersionProps    = Join-Path $RepoRoot "Version.props"
 $FontsSourcePath = Join-Path $RepoRoot "chore\Fonts.zip"
 
-# 自动发现 src\AutoCAD\AFR-ACAD*\*.csproj，避免新增 CAD 版本时手工维护列表。
+# 自动发现合并后的插件壳项目。
 # TFM 仅用于控制台日志展示；解析失败时回落为 "(unknown)"，不阻断发布流程。
 function Get-PluginTfm([string]$csprojPath) {
     try {
@@ -63,8 +63,15 @@ function Get-PluginTfm([string]$csprojPath) {
     }
 }
 
+$MergedPluginNames = @(
+    'AFR-ACAD2013-2024',
+    'AFR-ACAD2025-2026',
+    'AFR-ACAD2027'
+)
+
 $Plugins = @(
     Get-ChildItem -Path $PluginsRoot -Directory -Filter 'AFR-ACAD*' |
+        Where-Object { $MergedPluginNames -contains $_.Name } |
         Sort-Object Name |
         ForEach-Object {
             $csproj = Join-Path $_.FullName "$($_.Name).csproj"
@@ -91,6 +98,15 @@ function Write-Ok([string]$msg)   { Write-Host "  ✓ $msg" -ForegroundColor Gre
 function Write-Fail([string]$msg) { Write-Host "  ✗ $msg" -ForegroundColor Red }
 function Get-PluginReleaseFile([pscustomobject]$plugin, [string]$extension) {
     return Join-Path $PluginOutputRoot "$($plugin.Name)\release\$($plugin.Name)$extension"
+}
+
+function Get-PluginDescriptorFiles([pscustomobject]$plugin) {
+    $pluginOutput = Join-Path $PluginOutputRoot "$($plugin.Name)\release"
+    if (-not (Test-Path -LiteralPath $pluginOutput)) {
+        return @()
+    }
+
+    return @(Get-ChildItem -LiteralPath $pluginOutput -Filter "$($plugin.Name)*.cad.json" -File)
 }
 
 function Get-ReleaseVersion {
@@ -146,7 +162,7 @@ Write-Step "校验插件 Release 输出"
 $missingInputs = @()
 foreach ($p in $Plugins) {
     $srcDll = Get-PluginReleaseFile $p ".dll"
-    $srcJson = Get-PluginReleaseFile $p ".cad.json"
+    $srcJsonFiles = @(Get-PluginDescriptorFiles $p)
 
     if (Test-Path -LiteralPath $srcDll) {
         Write-Ok "$($p.Name).dll"
@@ -155,11 +171,12 @@ foreach ($p in $Plugins) {
         $missingInputs += $srcDll
     }
 
-    if (Test-Path -LiteralPath $srcJson) {
-        Write-Ok "$($p.Name).cad.json"
+    if ($srcJsonFiles.Count -gt 0) {
+        Write-Ok "$($p.Name) CAD 元数据 JSON × $($srcJsonFiles.Count)"
     } else {
-        Write-Fail "$srcJson 不存在（请检查 csproj 中的 CadBrand/CadVersion/CadRegistryBasePath 属性）"
-        $missingInputs += $srcJson
+        $expectedJsonPattern = Join-Path $PluginOutputRoot "$($p.Name)\release\$($p.Name)*.cad.json"
+        Write-Fail "$expectedJsonPattern 不存在（请检查 csproj 中的 CadDescriptor 项）"
+        $missingInputs += $expectedJsonPattern
     }
 }
 

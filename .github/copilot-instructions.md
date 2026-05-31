@@ -7,7 +7,7 @@
 - 项目名：`CADFontAutoReplace`，简称 AFR。
 - 当前范围：AutoCAD 缺失字体自动替换、样式表字体替换、样式表 `@TrueType` 文件级运行时映射、`LdFileHook` / `ShpLoadHook` 字体加载桥接，以及 `AFR.Deployer` 一键安装/卸载。
 - 当前源码树不包含 `AFR.GlyphCore`、WenShu、DBText 修复、AI 决策、native decode evidence、训练数据、候选包、模型、报告或补绘链路。旧记忆或旧文档中的这些名称均视为历史上下文，除非源码重新引入。
-- 支持 AutoCAD 2018 到 2027。版本壳目标框架为：2018=`net462`，2019/2020=`net472`，2021-2024=`net48`，2025/2026=`net8.0-windows`，2027=`net10.0-windows`。
+- 支持 AutoCAD 2013 到 2027。发布产物合并为三档 DLL：2013-2024=`AFR-ACAD2013-2024.dll` / `net48`，2025-2026=`AFR-ACAD2025-2026.dll` / `net8.0-windows`，2027=`AFR-ACAD2027.dll` / `net10.0-windows`。
 - 主要分发方式：`AFR.Deployer` 部署工具一键安装/卸载。
 - 次要分发方式：单 DLL `NETLOAD`，用于维护、测试和受限环境。
 - 统一版本来源：根目录 `Version.props`。发版时只改 `PluginDisplayVersion` 和必要的 `PluginBuildId`。
@@ -24,7 +24,9 @@ src/AFR.UI                插件侧 WPF 窗口与 ViewModel
 src/AFR.HostIntegration   部署器与插件共用的字体释放、AWS 弹窗抑制基础能力
 src/AFR.Polyfills         仅面向 .NET 5 以下版本壳的兼容补丁
 src/AutoCAD/AFR.AutoCAD   AutoCAD 命令、字体检测替换、Hook、执行编排
-src/AutoCAD/AFR-ACAD20XX  各 AutoCAD 版本壳工程
+src/AutoCAD/AFR-ACAD2013-2024  AutoCAD 2013-2024 合并版本壳
+src/AutoCAD/AFR-ACAD2025-2026  AutoCAD 2025-2026 合并版本壳
+src/AutoCAD/AFR-ACAD2027       AutoCAD 2027 版本壳
 src/AFR.Deployer          WPF 部署器
 tools                     发布脚本
 docs                      使用与开发文档
@@ -35,9 +37,9 @@ docs                      使用与开发文档
 - AutoCAD 插件 DLL 由版本壳导入共享项目组成：`AFR.Core`、`AFR.UI`、`AFR.AutoCAD`、`AFR.HostIntegration`，旧框架版本再导入 `AFR.Polyfills`。
 - `AFR.Core`、`AFR.UI`、`AFR.HostIntegration`、`AFR.Polyfills` 禁止引用 AutoCAD SDK。
 - `AFR.AutoCAD` 才能持有 AutoCAD 托管 API 类型、命令、Hook 和执行流程。
-- 版本壳 `AFR-ACAD20XX` 只负责目标框架、AutoCAD 包版本、平台常量、`PluginEntry`、`CommandClass` 和发布元数据。
+- 合并版本壳只负责目标框架、AutoCAD 包版本、`PluginEntry`、`CommandClass` 和发布元数据；运行时平台常量由 `RuntimeAutoCadPlatform` 按 `ACADVER` 选择。
 - `AFR.Deployer` 是独立 `net10.0-windows` WPF 应用，只导入 `AFR.HostIntegration`，不引用 AutoCAD SDK，也不直接引用插件项目。
-- `src/AutoCAD/Directory.Build.targets` 会把 `HandyControl` 嵌入插件 DLL，并在 Release 构建后生成 `AFR-ACAD20XX.cad.json` sidecar。
+- `src/AutoCAD/Directory.Build.targets` 会把 `HandyControl` 嵌入插件 DLL，并在 Release 构建后按 `CadDescriptor` 生成一个或多个 `.cad.json` sidecar。
 - 跨层能力通过 `PlatformManager`、共享项目和明确服务边界协调，不引入无必要的 DI 或抽象层。
 - 修改 Hook、注册表、部署器安装/卸载路径时必须保持小范围变更，并同步文档。
 
