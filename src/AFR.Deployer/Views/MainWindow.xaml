@@ -295,11 +295,12 @@
                     </Grid.RowDefinitions>
 
                     <!--
-                        卡片网格：固定 4 列；行数由 ItemsSource 数量自动决定，
-                        最后一行允许不占满（UniformGrid 默认行为，空格保持空白即可）。
-                        新增 CAD 版本时仅需在 CadDescriptors 中追加，无需改动 XAML。
+                        卡片网格：仅渲染已检测到的 CAD。
+                        新增支持版本时仅需在 CadDescriptors 中追加，无需改动 XAML。
                     -->
-                    <ItemsControl Grid.Row="0" ItemsSource="{Binding CadEntries}">
+                    <ItemsControl Grid.Row="0"
+                                  ItemsSource="{Binding CadEntries}"
+                                  Visibility="{Binding HasCadEntries, Converter={StaticResource BoolToVisibility}}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <UniformGrid Columns="4" />
@@ -449,6 +450,17 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <TextBlock Grid.Row="0"
+                               Text="未检测到可用 AutoCAD，支持 AutoCAD 2013-2027。"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               Visibility="{Binding HasCadEntries, Converter={StaticResource InverseBoolToVisibility}}" />
                 </Grid>
             </Border>
 

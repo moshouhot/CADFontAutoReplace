@@ -20,13 +20,12 @@ internal static partial class CadRegistryScanner
     private static partial Regex ProfilePattern();
 
     /// <summary>
-    /// 扫描注册表，返回所有受支持 CAD 版本的条目列表（按品牌 → 版本排序）。
+    /// 扫描注册表，返回所有已安装的受支持 CAD 版本条目列表（按品牌 → 版本排序）。
     /// <para>
     /// 只有在找到匹配的 AutoCAD 配置文件子键，且该子键能解析出有效的
     /// <c>AcadLocation</c> 并定位到真实的 <c>acad.exe</c> 时，才认为该版本已安装。
     /// 这样可以避免旧的注册表残留把已卸载的版本误判为“已安装”。
-    /// <see cref="CadDescriptors.All"/> 中未安装的版本仍返回占位条目，
-    /// 以便 UI 列出所有支持版本并禁用对应操作。
+    /// 未安装的受支持版本不返回占位条目，避免界面显示不可操作的灰色卡片。
     /// </para>
     /// </summary>
     internal static IReadOnlyList<CadInstallation> Scan()
@@ -39,15 +38,6 @@ internal static partial class CadRegistryScanner
 
             if (profileNames.Count == 0)
             {
-                // 占位条目：本机未安装该 CAD 版本，UI 中需展示但禁用
-                results.Add(new CadInstallation(
-                    descriptor,
-                    ProfileSubKeys:   [],
-                    IsCadInstalled:   false,
-                    Status:           PluginDeployStatus.NotInstalled,
-                    InstalledVersion: null,
-                    InstalledBuildId: null,
-                    InstalledDllPath: null));
                 continue;
             }
 

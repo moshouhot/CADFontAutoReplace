@@ -92,6 +92,7 @@ internal sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DetectionSummary))]
     [NotifyPropertyChangedFor(nameof(PluginSummary))]
     [NotifyPropertyChangedFor(nameof(HasPluginSummary))]
+    [NotifyPropertyChangedFor(nameof(HasCadEntries))]
     public partial int InstalledCount { get; set; }
 
     /// <summary>列表中条目总数。</summary>
@@ -123,8 +124,11 @@ internal sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasPluginSummary))]
     public partial int PendingCount { get; set; }
 
-    /// <summary>顶部 chip 主行：检测到的 CAD 版本数 / 受支持版本总数。</summary>
-    public string DetectionSummary => $"检测到 {InstalledCount} 个 CAD · 共支持 {TotalCount} 个版本";
+    /// <summary>顶部 chip 主行：检测到的 CAD 版本数 / 受支持范围。</summary>
+    public string DetectionSummary => $"检测到 {InstalledCount} 个 CAD · 支持 {SupportedCadRange}";
+
+    /// <summary>当前部署器打包支持的 CAD 范围。</summary>
+    public string SupportedCadRange => GetSupportedCadRange();
 
     /// <summary>顶部 chip 副行：插件部署状态分布。</summary>
     public string PluginSummary
@@ -144,6 +148,9 @@ internal sealed partial class MainViewModel : ObservableObject
 
     /// <summary>是否需要显示插件部署副行。</summary>
     public bool HasPluginSummary => !string.IsNullOrEmpty(PluginSummary);
+
+    /// <summary>是否检测到至少一个可操作 CAD 条目。</summary>
+    public bool HasCadEntries => InstalledCount > 0;
 
     /// <summary>部署工具自身的版本号，UI 显示用（X.Y.Z 格式）。</summary>
     /// <remarks>
@@ -371,7 +378,7 @@ internal sealed partial class MainViewModel : ObservableObject
                 CadEntries.Add(new CadEntryViewModel(result));
         }
 
-        TotalCount             = CadEntries.Count;
+        TotalCount             = CadDescriptors.All.Count;
         InstalledCount         = CadEntries.Count(e => e.IsCadInstalled);
         DeployedCurrentCount   = CadEntries.Count(e => e.IsCadInstalled && e.Status == PluginDeployStatus.InstalledCurrent);
         DeployedOutdatedCount  = CadEntries.Count(e => e.IsCadInstalled && e.Status == PluginDeployStatus.InstalledOutdated);
@@ -383,9 +390,28 @@ internal sealed partial class MainViewModel : ObservableObject
             (string.IsNullOrEmpty(StatusText) || StatusText is "就绪" or "正在扫描已安装的 CAD……"))
         {
             StatusText = CadEntries.Count == 0
-                ? "未检测到任何受支持的 AutoCAD 安装"
+                ? $"未检测到可用 AutoCAD（支持 {SupportedCadRange}）"
                 : "就绪";
         }
+    }
+
+    private static string GetSupportedCadRange()
+    {
+        var versions = CadDescriptors.All
+            .Where(d => string.Equals(d.Brand, "AutoCAD", StringComparison.OrdinalIgnoreCase))
+            .Select(d => int.TryParse(d.Version, out var year) ? year : 0)
+            .Where(year => year > 0)
+            .Order()
+            .ToList();
+
+        if (versions.Count == 0)
+        {
+            return "AutoCAD";
+        }
+
+        return versions[0] == versions[^1]
+            ? $"AutoCAD {versions[0]}"
+            : $"AutoCAD {versions[0]}-{versions[^1]}";
     }
 
     private static bool IsSameEntry(CadInstallation r, CadEntryViewModel e)
