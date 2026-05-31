@@ -1,9 +1,7 @@
 name: 🚀 推送事件编排
 
 on:
-  push:
-    branches:
-      - '**'
+  workflow_dispatch:
 
 concurrency:
   group: orchestrate-push-events-${{ github.ref }}

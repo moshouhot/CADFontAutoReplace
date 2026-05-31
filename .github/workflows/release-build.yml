@@ -1,17 +1,8 @@
 name: 📦 Release发布编排
 
 on:
-  # 只有主分支中会影响发布内容的文件变化时才自动发版。
-  push:
-    branches:
-      - main
-    paths:
-      - Version.props
-      - chore/Fonts.zip
-      - tools/Publish-ReleaseAssets.ps1
-      - src/**
-      - .github/workflows/release-build.yml
-  # 保留手动触发入口，便于维护者在 GitHub Actions 页面重新执行发布流程。
+  # Fork 默认使用 build-merged-dlls.yml 进行 push 编译。
+  # Release 编排保留为手动入口，避免普通 push 因 PR guard 阻断产生噪声。
   workflow_dispatch:
 
 concurrency:
