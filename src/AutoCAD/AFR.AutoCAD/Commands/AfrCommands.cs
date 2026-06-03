@@ -51,12 +51,25 @@ public class AfrCommands
                 });
 
             // 刷新共享字体索引，让后续 Hook 命中使用新配置。
-            PlatformManager.FontHook.UpdateConfig();
+            // AutoCAD 2013-2017 尚未配置 native Hook profile；这些版本只走样式表
+            // 检测/写回路径，避免在手动 AFR 配置后进入不适用的 Hook 刷新链路。
+            if (PlatformManager.Platform.SupportsNativeFontHooks)
+            {
+                PlatformManager.FontHook.UpdateConfig();
+            }
+            else
+            {
+                DiagnosticLogger.Skip(
+                    "AfrCommands",
+                    "UpdateHookConfig",
+                    "当前平台不支持 native 字体 Hook，跳过 Hook 配置刷新",
+                    new Dictionary<string, object?> { ["platform"] = PlatformManager.Platform.DisplayName });
+            }
 
             // 首次安装时 Hook 因无配置而跳过安装，此时 DWG 解析阶段的字体拦截不可用。
             // Hook 必须在文档打开之前安装才能生效，当前会话已无法补救。
             // 提示用户重启 CAD，使 Hook 在下次启动时读取已保存的配置并正确安装。
-            if (!PlatformManager.FontHook.IsInstalled)
+            if (PlatformManager.Platform.SupportsNativeFontHooks && !PlatformManager.FontHook.IsInstalled)
             {
                 log.Warning("首次配置完成，请重启 AutoCAD 使字体替换完整生效。");
                 DiagnosticLogger.Skip(
