@@ -19,7 +19,7 @@
 
 - **缺失字体自动替换**：AFR 会自动处理图纸中的缺失字体，避免打开图纸因为字体问题造成字符显示不全或乱码。
 - **字体缺失场景全覆盖**：同时处理 SHX 主字体、SHX 大字体、TrueType 字体，以及多行文字中的内联字体缺失。
-- **安装和卸载无残留**：部署工具/单DLL会自动识别 AutoCAD 2013–2027，完成安装、卸载、字体释放和插件状态检查全流程。
+- **绿色版安装和卸载无残留**：部署工具会自动识别 AutoCAD 2013–2027，安装时只写入自动加载注册表，DLL、配置和字体都保留在绿色目录中。
 - **支持人工复核**：通过 `AFRLOG` 查看每个缺失字体的替换情况，并对当前图纸逐条或批量调整。
 
 ---
@@ -28,18 +28,19 @@
 
 ### 推荐：部署工具一键安装
 
-一般用户只需要下载并运行 **`AFR-Deployer_vX.Y.Z.exe`**；`AFR-DLL_vX.Y.Z.zip` 主要用于维护、测试或受限环境下的手动 `NETLOAD`。
+一般用户只需要下载 **`AFR-Deployer-Green_vX.Y.Z.zip`**，解压后运行其中的 `AFR-Deployer.exe`。
 
 1. 在 [Releases](https://github.com/splrad/CADFontAutoReplace/releases) 下载最新发行包。
 2. **先关闭所有 AutoCAD 进程**（部署工具会在检测到 CAD 运行时禁用安装/卸载按钮）。
-3. 双击运行 `AFR-Deployer_vX.Y.Z.exe`，工具会自动扫描本机已安装的 AutoCAD 版本。
-4. 勾选需要安装的项目，确认“部署路径”（默认会选中首个非系统盘下的 `\CADPlugins\`），点击“安装”。
-5. 工具会自动完成：
-   - 将对应版本 DLL 复制到部署路径；
+3. 解压 `AFR-Deployer-Green_vX.Y.Z.zip` 到固定目录，例如 `D:\CAD APPLOAD\AFR-Deployer\`。
+4. 双击运行 `AFR-Deployer.exe`，工具会自动扫描本机已安装的 AutoCAD 版本。
+5. 勾选需要安装的项目，确认“绿色目录”显示为当前解压目录，点击“安装”。
+6. 工具会自动完成：
+   - 将注册表 `LOADER` 指向绿色目录中的对应版本 DLL；
    - 在注册表写入自动加载项；
    - 释放内嵌默认 SHX 字体到各 CAD 的 `Fonts` 目录；
    - 写入 `FixedProfile.aws` 以抑制“缺少 SHX 文件”弹窗。
-6. 启动 AutoCAD 后，插件自动生效。
+7. 启动 AutoCAD 后，插件自动生效。
 
 > 部署工具会实时监听注册表变化：后续安装/卸载新的 CAD 版本或修改配置文件后，无需手动“刷新”，列表会自动更新。
 >
@@ -49,8 +50,8 @@
 
 部署工具是推荐方式；如果只需要单 DLL 场景（例如维护、测试、受限环境），可以手动 `NETLOAD`：
 
-1. 在 [Releases](https://github.com/splrad/CADFontAutoReplace/releases) 下载 `AFR-DLL_vX.Y.Z.zip` 并解压。
-2. 按 AutoCAD 版本选择对应 DLL，例如 AutoCAD 2013–2024 使用 `AFR-ACAD2013-2024.dll`，AutoCAD 2025–2026 使用 `AFR-ACAD2025-2026.dll`，AutoCAD 2027 使用 `AFR-ACAD2027.dll`。
+1. 在 [Releases](https://github.com/splrad/CADFontAutoReplace/releases) 下载 `AFR-Deployer-Green_vX.Y.Z.zip` 并解压。
+2. 按 AutoCAD 版本选择对应 DLL，例如 AutoCAD 2013–2017 使用 `AFR-ACAD2013-2017.dll`，AutoCAD 2018–2024 使用 `AFR-ACAD2018-2024.dll`，AutoCAD 2025–2026 使用 `AFR-ACAD2025-2026.dll`，AutoCAD 2027 使用 `AFR-ACAD2027.dll`。
 3. 在 AutoCAD 命令行输入 `NETLOAD`，选择该 DLL。
 4. 首次 `NETLOAD` 会完成默认字体部署、配置初始化与自动加载注册；按命令行提示重启 AutoCAD 后生效。
 
@@ -70,7 +71,7 @@
 > - 保留 `sas_____.pfb`、`MstnFontConfig.xml`、`internat.rsc`、`font.rsc` 等非 SHX 文件；
 > - 字体过多会导致插件界面加载明显卡顿。
 >
-> [点击下载 CAD 字体包（Fonts.zip）](https://github.com/splrad/CADFontAutoReplace/releases)
+> 绿色包内置 `Fonts\ming.shx` 和 `Fonts\tssdchn.shx`，无需单独下载字体包。
 
 打开有缺失字体的 DWG，看到类似日志即说明插件已执行：
 
@@ -126,7 +127,8 @@ AFR 缺失字体自动替换 v9.1.0
 
 | CAD 版本 | DLL 文件名 | .NET |
 |:---:|:---:|:---:|
-| AutoCAD **2013–2024**（R19.0–R24.3） | `AFR-ACAD2013-2024.dll` | .NET Framework 4.8 |
+| AutoCAD **2013–2017**（R19.0–R21.0） | `AFR-ACAD2013-2017.dll` | .NET Framework 4.8，无 native hook |
+| AutoCAD **2018–2024**（R22.0–R24.3） | `AFR-ACAD2018-2024.dll` | .NET Framework 4.8 |
 | AutoCAD **2025–2026**（R25.0–R25.1） | `AFR-ACAD2025-2026.dll` | .NET 8.0 |
 | AutoCAD **2027**（R26.0） | `AFR-ACAD2027.dll` | .NET 10.0 |
 
@@ -221,8 +223,8 @@ QQ：1186191934
 3. 本地构建：
 
 ```bash
-# 构建某个 CAD 版本适配壳
-dotnet build src/AutoCAD/AFR-ACAD20XX/AFR-ACAD20XX.csproj
+# 构建某个合并版本适配壳，例如 AutoCAD 2025-2026
+dotnet build src/AutoCAD/AFR-ACAD2025-2026/AFR-ACAD2025-2026.csproj
 
 # 构建部署工具
 dotnet build src/AFR.Deployer/AFR.Deployer.csproj
@@ -231,7 +233,7 @@ dotnet build src/AFR.Deployer/AFR.Deployer.csproj
 dotnet build CADFontAutoReplace.slnx
 ```
 
-> 将 `20XX` 替换为当前目标版本（例如 `2027`）。插件统一版本号集中在根目录的 `Version.props`（发版时仅修改这个文件）。
+> 按目标 AutoCAD 年份选择对应合并壳：`2013-2017`、`2018-2024`、`2025-2026` 或 `2027`。插件统一版本号集中在根目录的 `Version.props`（发版时仅修改这个文件）。
 
 4. 验证关键命令（`AFR` / `AFRLOG`，Debug 下可验证 `AFRVIEW`）。
 5. 推送分支后，流程会自动创建/更新 `你的分支 -> test` 的 PR。

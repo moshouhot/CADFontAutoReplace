@@ -4,8 +4,8 @@
 
 ## 1. 先记住这 5 条
 
-1. 最终产物是按 AutoCAD 年份区分的插件 DLL，例如 `AFR-ACAD2026.dll`。
-2. 常用开发入口是版本壳 `src/AutoCAD/AFR-ACAD20XX/`，真正业务代码主要在 `src/AutoCAD/AFR.AutoCAD/`。
+1. 最终产物是四档绿色版插件 DLL，例如 `AFR-ACAD2025-2026.dll`。
+2. 常用开发入口是合并版本壳 `src/AutoCAD/AFR-ACAD20XX-20YY/`，真正业务代码主要在 `src/AutoCAD/AFR.AutoCAD/`。
 3. `AFR.Core`、`AFR.UI`、`AFR.HostIntegration`、`AFR.Polyfills` 不能引用 AutoCAD SDK。
 4. Hook 安装成功不等于字体映射成功；成功必须看真实 `HookHandler` hit / redirect 和 `FontRuntimeMappingStore` 结果。
 5. 改了命令、Hook、发布或范围边界时，要同步 README、`PROJECT_HANDOVER.md`、`.github/copilot-instructions.md` 或本文中的对应事实。
@@ -17,14 +17,14 @@
 按这个顺序做，目标是先确认你能构建、加载、执行命令和看日志。
 
 1. 打开仓库根目录的 `CADFontAutoReplace.slnx`。
-2. 选择你本机实际安装的 AutoCAD 年份，例如 2026 对应 `src/AutoCAD/AFR-ACAD2026/AFR-ACAD2026.csproj`。
+2. 选择你本机实际安装的 AutoCAD 年份对应的合并版本壳，例如 2026 对应 `src/AutoCAD/AFR-ACAD2025-2026/AFR-ACAD2025-2026.csproj`。
 3. 在仓库根目录构建目标版本壳：
 
 ```powershell
-dotnet build src/AutoCAD/AFR-ACAD2026/AFR-ACAD2026.csproj
+dotnet build src/AutoCAD/AFR-ACAD2025-2026/AFR-ACAD2025-2026.csproj
 ```
 
-4. 找到输出 DLL：`artifacts/bin/AFR-ACAD2026/debug/AFR-ACAD2026.dll`。
+4. 找到输出 DLL：`artifacts/bin/AFR-ACAD2025-2026/debug/AFR-ACAD2025-2026.dll`。
 5. 启动对应 AutoCAD，用 VS 调试版本壳，或在 CAD 里手动 `NETLOAD` 这个 DLL。
 6. CAD 命令行执行 `AFR`，确认字体配置窗口能打开。
 7. 打开一张测试 DWG，执行 `AFRLOG`，确认能看到样式表检测和替换结果。
@@ -36,11 +36,11 @@ dotnet build src/AutoCAD/AFR-ACAD2026/AFR-ACAD2026.csproj
 
 ## 3. 第一次构建
 
-仓库支持 AutoCAD 2018-2027，每个年份有一个版本壳工程。`20XX` 要替换成你的目标版本。
+仓库支持 AutoCAD 2013-2027，默认 solution 与发布脚本只构建四个合并版本壳。
 
 ```powershell
-# 构建一个版本插件
-dotnet build src/AutoCAD/AFR-ACAD2026/AFR-ACAD2026.csproj
+# 构建一个合并版本插件
+dotnet build src/AutoCAD/AFR-ACAD2025-2026/AFR-ACAD2025-2026.csproj
 
 # 构建部署器
 dotnet build src/AFR.Deployer/AFR.Deployer.csproj
@@ -53,11 +53,10 @@ dotnet build CADFontAutoReplace.slnx
 
 | AutoCAD | 工程 | 输出 DLL |
 | --- | --- | --- |
-| 2018 | `src/AutoCAD/AFR-ACAD2018/` | `AFR-ACAD2018.dll` |
-| 2019 | `src/AutoCAD/AFR-ACAD2019/` | `AFR-ACAD2019.dll` |
-| 2020 | `src/AutoCAD/AFR-ACAD2020/` | `AFR-ACAD2020.dll` |
-| 2021-2024 | `src/AutoCAD/AFR-ACAD2021/` 等 | `AFR-ACAD2021.dll` 等 |
-| 2025-2027 | `src/AutoCAD/AFR-ACAD2025/` 等 | `AFR-ACAD2025.dll` 等 |
+| 2013-2017 | `src/AutoCAD/AFR-ACAD2013-2017/` | `AFR-ACAD2013-2017.dll` |
+| 2018-2024 | `src/AutoCAD/AFR-ACAD2018-2024/` | `AFR-ACAD2018-2024.dll` |
+| 2025-2026 | `src/AutoCAD/AFR-ACAD2025-2026/` | `AFR-ACAD2025-2026.dll` |
+| 2027 | `src/AutoCAD/AFR-ACAD2027/` | `AFR-ACAD2027.dll` |
 
 如果构建失败，先看目标 SDK、AutoCAD.NET 包还原、目标年份是否写错。不要因为一个版本壳失败就先改共享业务代码。
 
@@ -67,7 +66,7 @@ dotnet build CADFontAutoReplace.slnx
 
 ### VS 启动版本壳
 
-适合日常 Debug。选择目标 `AFR-ACAD20XX` 工程启动，让 VS 拉起对应 AutoCAD。启动后执行 `AFR` / `AFRLOG` 验证命令面。
+适合日常 Debug。选择目标合并版本壳工程，例如 `AFR-ACAD2025-2026`，让 VS 拉起对应 AutoCAD。启动后执行 `AFR` / `AFRLOG` 验证命令面。
 
 ### 手动 NETLOAD
 
@@ -75,7 +74,7 @@ dotnet build CADFontAutoReplace.slnx
 
 1. 构建目标版本壳。
 2. 在 AutoCAD 命令行输入 `NETLOAD`。
-3. 选择 `artifacts/bin/AFR-ACAD20XX/debug/AFR-ACAD20XX.dll`。
+3. 选择对应输出 DLL，例如 `artifacts/bin/AFR-ACAD2025-2026/debug/AFR-ACAD2025-2026.dll`。
 4. 首次 `NETLOAD` 会完成默认字体释放、配置初始化和自动加载注册，按命令行提示重启后再验证 Hook 行为。
 
 ### 部署器安装
@@ -116,8 +115,8 @@ Hook 诊断必须分清三层：安装成功、收到 native 请求、实际 red
 | 改样式表替换 | `FontReplacer`、`ExecutionController`、`AFRLOG` | SHX 主字体、大字体、TrueType、样式表 `@TrueType` 都覆盖 |
 | 改 Hook | `LdFileHook`、`ShpLoadHook`、`NativeFontHookProfile` | 真实 `HookHandler` hit/redirect，2027 ABI 和 fail-closed 行为正确 |
 | 改 AFRLOG | `AfrCommands`、`DocumentContextManager`、UI ViewModel | 原始检测、仍缺失、运行时映射三类数据来源不混淆 |
-| 改部署器 | `src/AFR.Deployer`、`AFR.HostIntegration` | UAC、注册表、嵌入资源、安装/卸载、字体释放都验证 |
-| 改发布流程 | `Publish-ReleaseAssets.ps1`、Release workflow、`Version.props` | `artifacts/ReleaseAssets` 三件套生成且名称带版本 |
+| 改部署器 | `src/AFR.Deployer`、`AFR.HostIntegration` | UAC、注册表、同目录 DLL/JSON、安装/卸载、字体释放都验证 |
+| 改发布流程 | `Publish-ReleaseAssets.ps1`、Release workflow、`Version.props` | 绿色目录与版本化绿色 ZIP 生成正确 |
 | 改文档 | README、本文、交接文档、仓库记忆 | 搜索旧入口和历史链路，确认没有误导性残留 |
 
 ## 7. 第一次做小改动
@@ -192,7 +191,7 @@ src/AFR.UI                插件侧 WPF 窗口与 ViewModel，不引用 AutoCAD 
 src/AFR.HostIntegration   部署器与插件共用的字体释放、AWS 弹窗抑制能力
 src/AFR.Polyfills         旧 .NET Framework 版本壳兼容补丁
 src/AutoCAD/AFR.AutoCAD   AutoCAD 命令、字体检测替换、Hook 和执行编排
-src/AutoCAD/AFR-ACAD20XX  版本壳：目标框架、平台常量、PluginEntry、CommandClass
+src/AutoCAD/AFR-ACAD20XX-20YY  合并版本壳：目标框架、平台常量、PluginEntry、CommandClass
 src/AFR.Deployer          独立 WPF 部署器
 tools                     发布脚本
 docs                      使用与开发文档
@@ -309,7 +308,7 @@ docs                      使用与开发文档
 - `AFR.Deployer` 是 `net10.0-windows`、`win-x64`、自包含单文件 WPF 应用。
 - `app.manifest` 请求 `requireAdministrator`，安装/卸载时应预期 UAC。
 - 部署器通过 `AFR.HostIntegration` 共用内嵌 SHX 字体释放和 `FixedProfile.aws` 弹窗抑制能力。
-- 插件 DLL 与 `.cad.json` 从 `artifacts/bin/AFR-ACAD*/release/` 嵌入部署器资源。
+- 插件 DLL 与 `.cad.json` 从 `artifacts/bin/AFR-ACAD*/release/` 复制到 `bin/AFR-Deployer/`，部署器从同目录读取。
 - 不需要 Windows App Runtime 作为外置依赖；不要重新引入该要求，除非代码确实改为依赖 WinAppSDK。
 
 发布资产由 `tools/Publish-ReleaseAssets.ps1` 统一生成：
@@ -323,9 +322,14 @@ docs                      使用与开发文档
 
 ```text
 publish/AFR.Deployer/AFR-Deployer.exe
-artifacts/ReleaseAssets/AFR-Deployer_vX.Y.Z.exe
-artifacts/ReleaseAssets/AFR-DLL_vX.Y.Z.zip
-artifacts/ReleaseAssets/Fonts.zip
+bin/AFR-Deployer/AFR-Deployer.exe
+bin/AFR-Deployer/AFR-ACAD2013-2017.dll
+bin/AFR-Deployer/AFR-ACAD2018-2024.dll
+bin/AFR-Deployer/AFR-ACAD2025-2026.dll
+bin/AFR-Deployer/AFR-ACAD2027.dll
+bin/AFR-Deployer/AFR.config.json
+bin/AFR-Deployer/Fonts/
+artifacts/ReleaseAssets/AFR-Deployer-Green_vX.Y.Z.zip
 ```
 
 发版版本号来自根目录 `Version.props`。发布脚本不接受模型、模型清单、训练包或原生推理运行时参数。

@@ -464,7 +464,7 @@
                 </Grid>
             </Border>
 
-            <!-- 底部：安装目录 + 操作按钮 -->
+            <!-- 底部：绿色目录 + 操作按钮 -->
             <Border Grid.Row="2"
                     Margin="0,12,0,0"
                     Background="{DynamicResource LayerFillColorDefaultBrush}"
@@ -480,7 +480,7 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0"
-                               Text="安装目录"
+                               Text="绿色目录"
                                FontSize="13"
                                FontWeight="SemiBold"
                                Margin="0,0,0,8" />
@@ -488,19 +488,12 @@
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <ui:TextBox Grid.Column="0"
                                     Text="{Binding DeployPath, UpdateSourceTrigger=PropertyChanged}"
                                     FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI"
-                                    PlaceholderText="部署目录" />
-                        <ui:Button Grid.Column="1"
-                                   Content="浏览"
-                                   Appearance="Secondary"
-                                   Icon="{ui:SymbolIcon FolderOpen24}"
-                                   Command="{Binding BrowseCommand}"
-                                   MinWidth="84"
-                                   Margin="10,0,0,0" />
+                                    IsReadOnly="True"
+                                    PlaceholderText="绿色目录" />
                     </Grid>
 
                     <Grid Grid.Row="2" Margin="0,12,0,0">
@@ -510,7 +503,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0"
-                                   Text="插件将部署到所选目录并写入注册表，下次启动 CAD 时生效。"
+                                   Text="安装只写入注册表，LOADER 指向本目录中的插件 DLL。"
                                    VerticalAlignment="Center"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />

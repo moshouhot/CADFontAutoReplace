@@ -22,7 +22,6 @@ namespace AFR.Deployer.ViewModels;
 internal sealed partial class MainViewModel : ObservableObject
 {
     private readonly IDialogService                _dialog;
-    private readonly IFolderPickerService          _folderPicker;
     private readonly List<RegistryChangeWatcher>   _registryWatchers = [];
     private readonly CadProcessWatcher             _processWatcher   = new();
     private readonly DispatcherTimer               _processPollTimer;
@@ -42,35 +41,13 @@ internal sealed partial class MainViewModel : ObservableObject
     private const int                              MaxUpdateCheckAttempts = 3;
 
     [ObservableProperty]
-    public partial string DeployPath { get; set; } = ResolveDefaultDeployPath();
+    public partial string DeployPath { get; set; } = ResolveGreenInstallPath();
 
     /// <summary>
-    /// 选择默认部署根目录：优先使用首个非系统盘固定盘，
-    /// 否则回落到系统盘下的同名目录，并保留末尾目录分隔符。
+    /// 绿色版固定使用部署器所在目录作为 DLL 注册路径。
     /// </summary>
-    private static string ResolveDefaultDeployPath()
-    {
-        const string FolderName = "CADPlugins";
-        var systemRoot = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.System))
-                         ?? @"C:\";
-
-        try
-        {
-            var preferred = DriveInfo.GetDrives()
-                .Where(d => d.DriveType == DriveType.Fixed && d.IsReady)
-                .Select(d => d.RootDirectory.FullName)
-                .FirstOrDefault(root => !string.Equals(root, systemRoot, StringComparison.OrdinalIgnoreCase));
-
-            if (!string.IsNullOrEmpty(preferred))
-                return Path.Combine(preferred, FolderName) + Path.DirectorySeparatorChar;
-        }
-        catch
-        {
-            // 任何 IO 异常都回落到系统盘，保证 UI 始终有可用路径。
-        }
-
-        return Path.Combine(systemRoot, FolderName) + Path.DirectorySeparatorChar;
-    }
+    private static string ResolveGreenInstallPath()
+        => AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
     [ObservableProperty]
     public partial string StatusText { get; set; } = "正在扫描已安装的 CAD……";
@@ -219,10 +196,9 @@ internal sealed partial class MainViewModel : ObservableObject
     /// <summary>DataGrid 数据源。</summary>
     public ObservableCollection<CadEntryViewModel> CadEntries { get; } = [];
 
-    internal MainViewModel(IDialogService dialog, IFolderPickerService folderPicker)
+    internal MainViewModel(IDialogService dialog)
     {
-        _dialog       = dialog;
-        _folderPicker = folderPicker;
+        _dialog = dialog;
 
         // ── 进程实时监听（WMI）：尽快感知 CAD 启动与退出。
         _processWatcher.StateChanged += OnProcessChanged;
@@ -433,16 +409,6 @@ internal sealed partial class MainViewModel : ObservableObject
             StatusText = "就绪";
     }
 
-    // ── 路径浏览 ──
-
-    [RelayCommand]
-    private async Task BrowseAsync()
-    {
-        var selected = await _folderPicker.PickFolderAsync(DeployPath);
-        if (!string.IsNullOrEmpty(selected))
-            DeployPath = selected;
-    }
-
     // ── 更新检查 ──
 
     /// <summary>启动后静默检查 GitHub 最新发行版，不影响部署器主流程。</summary>
@@ -532,7 +498,7 @@ internal sealed partial class MainViewModel : ObservableObject
                 var key = entry.Installation.Descriptor.AppName;
                 var fresh = freshResults.GetValueOrDefault(key, entry.Installation);
 
-                if (!PluginDeployer.TryInstall(fresh, DeployPath, out var err, out var installWarning))
+                if (!PluginDeployer.TryInstall(fresh, out var err, out var installWarning))
                     errors.Add($"{fresh.Descriptor.DisplayName}：{err}");
                 else
                 {

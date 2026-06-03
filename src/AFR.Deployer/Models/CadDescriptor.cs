@@ -1,4 +1,4 @@
-using System.Reflection;
+using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -19,7 +19,7 @@ namespace AFR.Deployer.Models;
 /// <param name="DisplayName">UI 显示名称，如 "AutoCAD 2025"。</param>
 /// <param name="RegistryBasePath">注册表基路径，如 <c>Software\Autodesk\AutoCAD\R25.0</c>。</param>
 /// <param name="AppName">注册表 Applications 子键名，如 "AFR-ACAD2025"。</param>
-/// <param name="EmbeddedResourceKey">嵌入资源的清单名称，用于提取 DLL。</param>
+/// <param name="EmbeddedResourceKey">插件 DLL 文件名；兼容旧字段名。</param>
 internal sealed record CadDescriptor(
     string Brand,
     string Version,
@@ -29,7 +29,7 @@ internal sealed record CadDescriptor(
     string EmbeddedResourceKey);
 
 /// <summary>
-/// 所有受支持 CAD 版本的元数据表（运行时由嵌入的 <c>*.cad.json</c> Sidecar 自动加载）。
+/// 所有受支持 CAD 版本的元数据表（运行时由部署器同目录的 <c>*.cad.json</c> Sidecar 自动加载）。
 /// <para>
 /// 注册表配置文件子键模式固定为 <c>^ACAD-[A-Za-z0-9]+:[A-Za-z0-9]+$</c>，
 /// 由 <see cref="Services.CadRegistryScanner"/> 直接使用常量，不在此处重复声明。
@@ -37,22 +37,14 @@ internal sealed record CadDescriptor(
 /// </summary>
 internal static class CadDescriptors
 {
-    /// <summary>嵌入资源前缀；与 csproj 中 <c>LogicalName</c> 约定保持一致。</summary>
-    private const string ResourcePrefix = "AFR.Deployer.Resources.";
-
     /// <summary>JSON Sidecar 文件后缀。</summary>
     private const string SidecarSuffix = ".cad.json";
 
     /// <summary>按 (品牌, 版本) 升序排列的所有支持版本。</summary>
-    internal static readonly IReadOnlyList<CadDescriptor> All = LoadFromEmbeddedSidecars();
+    internal static readonly IReadOnlyList<CadDescriptor> All = LoadFromSidecarFiles();
 
-    private static IReadOnlyList<CadDescriptor> LoadFromEmbeddedSidecars()
+    private static IReadOnlyList<CadDescriptor> LoadFromSidecarFiles()
     {
-        var assembly = typeof(CadDescriptors).Assembly;
-        var sidecarNames = assembly.GetManifestResourceNames()
-            .Where(n => n.StartsWith(ResourcePrefix, StringComparison.Ordinal)
-                     && n.EndsWith(SidecarSuffix, StringComparison.OrdinalIgnoreCase));
-
         var list = new List<CadDescriptor>();
         var options = new JsonSerializerOptions
         {
@@ -61,21 +53,44 @@ internal static class CadDescriptors
             AllowTrailingCommas  = true,
         };
 
-        foreach (var name in sidecarNames)
+        var baseDirectory = AppContext.BaseDirectory;
+        if (!Directory.Exists(baseDirectory))
         {
-            using var stream = assembly.GetManifestResourceStream(name);
-            if (stream is null) continue;
+            return list;
+        }
 
-            var dto = JsonSerializer.Deserialize<CadDescriptorDto>(stream, options);
-            if (dto is null) continue;
+        foreach (var path in Directory.EnumerateFiles(baseDirectory, "*" + SidecarSuffix, SearchOption.TopDirectoryOnly))
+        {
+            CadDescriptorDto? dto;
+            try
+            {
+                using var stream = File.OpenRead(path);
+                dto = JsonSerializer.Deserialize<CadDescriptorDto>(stream, options);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (dto is null)
+            {
+                continue;
+            }
+
+            var appName = dto.AppName ?? string.Empty;
+            var dllFileName = Path.GetFileName(dto.EmbeddedResourceKey ?? string.Empty);
+            if (string.IsNullOrWhiteSpace(dllFileName))
+            {
+                dllFileName = appName + ".dll";
+            }
 
             list.Add(new CadDescriptor(
                 Brand:               dto.Brand               ?? string.Empty,
                 Version:             dto.Version             ?? string.Empty,
                 DisplayName:         dto.DisplayName         ?? $"{dto.Brand} {dto.Version}",
                 RegistryBasePath:    dto.RegistryBasePath    ?? string.Empty,
-                AppName:             dto.AppName             ?? string.Empty,
-                EmbeddedResourceKey: dto.EmbeddedResourceKey ?? $"{ResourcePrefix}{dto.AppName}.dll"));
+                AppName:             appName,
+                EmbeddedResourceKey: dllFileName));
         }
 
         return list

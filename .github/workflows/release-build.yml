@@ -199,7 +199,7 @@ jobs:
         id: package
         shell: pwsh
         run: |
-          # GitHub Release 会自动提供源码 zip/tar；这里仅额外上传部署器 EXE、插件 DLL 包与字体压缩包。
+          # GitHub Release 会自动提供源码 zip/tar；这里仅额外上传绿色版部署包。
           $tagName = '${{ steps.version.outputs.tag_name }}'
           $assetDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts/ReleaseAssets'
           New-Item -ItemType Directory -Force -Path $assetDir | Out-Null
@@ -215,17 +215,11 @@ jobs:
               }
           }
 
-          $exeAssetPath = Join-Path $assetDir "AFR-Deployer_$tagName.exe"
-          $dllZipAssetPath = Join-Path $assetDir "AFR-DLL_$tagName.zip"
-          $fontsAssetPath = Join-Path $assetDir 'Fonts.zip'
+          $greenZipAssetPath = Join-Path $assetDir "AFR-Deployer-Green_$tagName.zip"
 
-          Assert-ReleaseAssetSource -Path $exeAssetPath -Description '版本化部署工具程序'
-          Assert-ReleaseAssetSource -Path $dllZipAssetPath -Description '版本化插件 DLL 压缩包'
-          Assert-ReleaseAssetSource -Path $fontsAssetPath -Description '发布用字体压缩包'
+          Assert-ReleaseAssetSource -Path $greenZipAssetPath -Description '绿色版部署包'
 
-          "exe_path=$exeAssetPath" >> $env:GITHUB_OUTPUT
-          "dll_zip_path=$dllZipAssetPath" >> $env:GITHUB_OUTPUT
-          "fonts_path=$fontsAssetPath" >> $env:GITHUB_OUTPUT
+          "green_zip_path=$greenZipAssetPath" >> $env:GITHUB_OUTPUT
 
       - name: 🧠 生成发布说明
         if: steps.version.outputs.should_release == 'true'
@@ -259,7 +253,8 @@ jobs:
               # 固定发布附件只展示在“下载说明”，不纳入“变更记录”。
               # 以后若新增固定附件源文件，只需要在这里补充路径。
               return @(
-                  'chore/Fonts.zip'
+                  'src/AFR.HostIntegration/Fonts/ming.shx',
+                  'src/AFR.HostIntegration/Fonts/tssdchn.shx'
               )
           }
 
@@ -688,11 +683,9 @@ jobs:
           $lines.Add('')
           $lines.Add('| 文件 | 说明 |')
           $lines.Add('| --- | --- |')
-          $lines.Add("| **AFR-Deployer_$tagName.exe** | 主安装程序，双击运行并选择 AutoCAD 版本 |")
-          $lines.Add("| AFR-DLL_$tagName.zip | 手动 NETLOAD 用插件 DLL 包 |")
-          $lines.Add('| Fonts.zip | 字体资源包（用于手动补充或备份） |')
+          $lines.Add("| **AFR-Deployer-Green_$tagName.zip** | 绿色版完整包，解压后运行 AFR-Deployer.exe |")
           $lines.Add('')
-          $lines.Add("👉 **一般用户只需下载：AFR-Deployer_$tagName.exe**")
+          $lines.Add("👉 **一般用户只需下载并解压：AFR-Deployer-Green_$tagName.zip**")
           $lines.Add('')
           $lines.Add('------')
           $lines.Add('')
@@ -891,9 +884,7 @@ jobs:
         run: |
           # gh release create 会在 tag 不存在时基于 --target 自动创建 tag。
           gh release create '${{ steps.version.outputs.tag_name }}' `
-              '${{ steps.package.outputs.exe_path }}' `
-              '${{ steps.package.outputs.dll_zip_path }}' `
-              '${{ steps.package.outputs.fonts_path }}' `
+              '${{ steps.package.outputs.green_zip_path }}' `
               --repo $env:GH_REPO `
               --target '${{ github.sha }}' `
               --title '${{ steps.version.outputs.release_title }}' `

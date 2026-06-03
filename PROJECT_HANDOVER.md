@@ -20,7 +20,8 @@ src/AFR.UI                WPF 窗口与 ViewModel
 src/AFR.HostIntegration   部署器与插件共用的字体释放、AWS 弹窗抑制能力
 src/AFR.Polyfills         旧 .NET Framework 版本壳兼容补丁
 src/AFR.AutoCAD           AutoCAD 命令、字体检测替换、Hook 和执行编排
-src/AutoCAD/AFR-ACAD2013-2024  AutoCAD 2013-2024 合并版本壳（net48）
+src/AutoCAD/AFR-ACAD2013-2017  AutoCAD 2013-2017 合并版本壳（net48，无 native Hook）
+src/AutoCAD/AFR-ACAD2018-2024  AutoCAD 2018-2024 合并版本壳（net48，有 native Hook）
 src/AutoCAD/AFR-ACAD2025-2026  AutoCAD 2025-2026 合并版本壳（net8.0-windows）
 src/AutoCAD/AFR-ACAD2027       AutoCAD 2027 版本壳（net10.0-windows）
 src/AFR.Deployer          部署器
@@ -81,9 +82,14 @@ AFR.Core -> AFR.UI -> AFR.AutoCAD -> AFR-ACAD20XX/合并版本壳
 
 ```text
 publish/AFR.Deployer/AFR-Deployer.exe
-artifacts/ReleaseAssets/AFR-Deployer_vX.Y.Z.exe
-artifacts/ReleaseAssets/AFR-DLL_vX.Y.Z.zip
-artifacts/ReleaseAssets/Fonts.zip
+bin/AFR-Deployer/AFR-Deployer.exe
+bin/AFR-Deployer/AFR-ACAD2013-2017.dll
+bin/AFR-Deployer/AFR-ACAD2018-2024.dll
+bin/AFR-Deployer/AFR-ACAD2025-2026.dll
+bin/AFR-Deployer/AFR-ACAD2027.dll
+bin/AFR-Deployer/AFR.config.json
+bin/AFR-Deployer/Fonts/
+artifacts/ReleaseAssets/AFR-Deployer-Green_vX.Y.Z.zip
 ```
 
 发布脚本不再接受模型、模型清单或原生推理运行时参数。
@@ -104,4 +110,4 @@ artifacts/ReleaseAssets/Fonts.zip
 - `AFR` 能完成字体配置和当前图纸处理。
 - `AFRLOG` 能展示样式表检测、替换状态和真实文件级运行时映射。
 - `LdFileHook`、`ShpLoadHook` 在各自边界内工作，启动日志只显示这两个默认字体 Hook；2027 的 `ShpLoadHook` 日志应显示 `_N0022 bool/bool` ABI。
-- 发布脚本能生成部署器、DLL 包和字体包。
+- 发布脚本能生成绿色目录和 `AFR-Deployer-Green_vX.Y.Z.zip`。

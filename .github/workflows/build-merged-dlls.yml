@@ -1,4 +1,4 @@
-name: Build merged DLLs
+name: Build green release assets
 
 on:
   workflow_dispatch:
@@ -7,14 +7,14 @@ on:
       - main
     paths:
       - Version.props
-      - chore/Fonts.zip
+      - src/AFR.HostIntegration/Fonts/**
       - tools/Publish-ReleaseAssets.ps1
       - src/**
       - .github/workflows/build-merged-dlls.yml
 
 jobs:
   build:
-    name: Build merged AutoCAD DLL assets
+    name: Build green AutoCAD release assets
     runs-on: windows-latest
     timeout-minutes: 45
 
@@ -40,6 +40,6 @@ jobs:
       - name: Upload release assets
         uses: actions/upload-artifact@v4
         with:
-          name: AFR-merged-release-assets
+          name: AFR-green-release-assets
           path: artifacts/ReleaseAssets/*
           if-no-files-found: error

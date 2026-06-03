@@ -1,39 +1,35 @@
 using Microsoft.Win32;
+using System.IO;
+using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using AFR.Platform;
 
 namespace AFR.Services;
 
 /// <summary>
-/// 业务配置服务，使用 Windows 注册表持久化保存插件设置。
-/// <para>
-/// 采用全局单例模式，通过 <see cref="Instance"/> 访问。
-/// 提供带内存缓存的类型安全配置访问，并通过 <see cref="PlatformManager"/> 定位当前平台对应的注册表路径。
-/// 写入时会同步到所有匹配的 CAD 版本注册表项。
-/// </para>
+/// 业务配置服务。绿色版优先把配置保存到插件 DLL 所在目录的 <c>AFR.config.json</c>；
+/// 若目录不可写，则回退到用户 AppData。注册表仅作为旧版本配置的一次性读取来源。
 /// </summary>
 public sealed class ConfigService
 {
-    // 使用 Lazy<T> 实现线程安全的延迟初始化单例。
+    private const string ConfigFileName = "AFR.config.json";
+
     private static readonly Lazy<ConfigService> _instance = new(() => new ConfigService());
-    /// <summary>获取 ConfigService 的全局唯一实例。</summary>
     public static ConfigService Instance => _instance.Value;
 
-    // 从 PlatformManager 获取当前 CAD 平台的注册表定位信息。
     private static string AutoCadBasePath => PlatformManager.Platform.RegistryBasePath;
     private static string AppName => PlatformManager.Platform.AppName;
     private static string KeyPattern => PlatformManager.Platform.RegistryKeyPattern;
 
-    // 编译后的正则表达式，用于匹配当前 CAD 版本对应的子键名。
     private Regex? _keyPatternRegex;
     private Regex KeyPatternRegex => _keyPatternRegex ??= new Regex(KeyPattern, RegexOptions.Compiled);
 
-    // ── 内存缓存字段：避免每次访问都读取注册表。──
     private string? _mainFont;
     private string? _bigFont;
     private string? _trueTypeFont;
     private int? _isInitialized;
-    // volatile 确保多线程场景下可见最新状态。
+    private string? _configPath;
     private volatile bool _cacheLoaded;
 #if NET9_0_OR_GREATER
     private readonly System.Threading.Lock _lock = new();
@@ -41,19 +37,20 @@ public sealed class ConfigService
     private readonly object _lock = new();
 #endif
 
-    // 缓存解析后的有效应用注册表路径。
     private List<string>? _resolvedAppPaths;
 
-    // 私有构造函数：强制通过 Instance 访问。
     private ConfigService() { }
 
-    /// <summary>
-    /// 返回所有匹配当前 CAD 版本的应用程序注册表路径。
-    /// <para>
-    /// 遍历 CAD 根路径下的所有子键，筛选出与版本模式匹配的项，
-    /// 再拼接为完整的 Applications\{AppName} 路径。结果会被缓存。
-    /// </para>
-    /// </summary>
+    /// <summary>当前实际使用的配置文件路径。</summary>
+    public string ConfigPath
+    {
+        get
+        {
+            EnsureCacheLoaded();
+            return _configPath ?? ResolveConfigPath(preferExisting: true);
+        }
+    }
+
     public IReadOnlyList<string> GetAllApplicationPaths()
     {
         var cached = _resolvedAppPaths;
@@ -78,41 +75,31 @@ public sealed class ConfigService
         }
     }
 
-    /// <summary>
-    /// 返回首个匹配的应用程序注册表路径，用于读写配置值。
-    /// 若未找到匹配路径则返回 null。
-    /// </summary>
     public string? GetPrimaryApplicationPath()
     {
         var paths = GetAllApplicationPaths();
         return paths.Count > 0 ? paths[0] : null;
     }
 
-    /// <summary>
-    /// 确保内存缓存已从注册表加载。
-    /// 首次调用时读取全部配置值，后续调用直接复用缓存。
-    /// </summary>
     private void EnsureCacheLoaded()
     {
         if (_cacheLoaded) return;
         lock (_lock)
         {
             if (_cacheLoaded) return;
-            var path = GetPrimaryApplicationPath();
-            if (path == null) return;
 
-            _mainFont = RegistryService.ReadString(Registry.CurrentUser, path, "MainFont");
-            _bigFont = RegistryService.ReadString(Registry.CurrentUser, path, "BigFont");
-            _trueTypeFont = RegistryService.ReadString(Registry.CurrentUser, path, "TrueTypeFont");
-            _isInitialized = RegistryService.ReadDword(Registry.CurrentUser, path, "IsInitialized");
+            _configPath = ResolveConfigPath(preferExisting: true);
+            if (TryLoadFromFile(_configPath))
+            {
+                _cacheLoaded = true;
+                return;
+            }
+
+            LoadLegacyRegistryConfig();
             _cacheLoaded = true;
         }
     }
 
-    /// <summary>
-    /// SHX 主字体替换名称。
-    /// 读取时优先使用缓存，写入时同步到所有匹配的注册表路径。
-    /// </summary>
     public string MainFont
     {
         get
@@ -122,18 +109,11 @@ public sealed class ConfigService
         }
         set
         {
-            foreach (var path in GetAllApplicationPaths())
-            {
-                RegistryService.WriteString(Registry.CurrentUser, path, "MainFont", value);
-            }
-            lock (_lock) { _mainFont = value; }
+            EnsureCacheLoaded();
+            lock (_lock) { _mainFont = value ?? string.Empty; SaveLocked(); }
         }
     }
 
-    /// <summary>
-    /// SHX 大字体替换名称。
-    /// 读取时优先使用缓存，写入时同步到所有匹配的注册表路径。
-    /// </summary>
     public string BigFont
     {
         get
@@ -143,18 +123,11 @@ public sealed class ConfigService
         }
         set
         {
-            foreach (var path in GetAllApplicationPaths())
-            {
-                RegistryService.WriteString(Registry.CurrentUser, path, "BigFont", value);
-            }
-            lock (_lock) { _bigFont = value; }
+            EnsureCacheLoaded();
+            lock (_lock) { _bigFont = value ?? string.Empty; SaveLocked(); }
         }
     }
 
-    /// <summary>
-    /// TrueType 字体替换名称。
-    /// 读取时优先使用缓存，写入时同步到所有匹配的注册表路径。
-    /// </summary>
     public string TrueTypeFont
     {
         get
@@ -164,18 +137,11 @@ public sealed class ConfigService
         }
         set
         {
-            foreach (var path in GetAllApplicationPaths())
-            {
-                RegistryService.WriteString(Registry.CurrentUser, path, "TrueTypeFont", value);
-            }
-            lock (_lock) { _trueTypeFont = value; }
+            EnsureCacheLoaded();
+            lock (_lock) { _trueTypeFont = value ?? string.Empty; SaveLocked(); }
         }
     }
 
-    /// <summary>
-    /// 插件是否已完成首次初始化配置。
-    /// 注册表中以 DWORD 值存储（1 表示已初始化，0 表示未初始化）。
-    /// </summary>
     public bool IsInitialized
     {
         get
@@ -185,19 +151,11 @@ public sealed class ConfigService
         }
         set
         {
-            int val = value ? 1 : 0;
-            foreach (var path in GetAllApplicationPaths())
-            {
-                RegistryService.WriteDword(Registry.CurrentUser, path, "IsInitialized", val);
-            }
-            lock (_lock) { _isInitialized = val; }
+            EnsureCacheLoaded();
+            lock (_lock) { _isInitialized = value ? 1 : 0; SaveLocked(); }
         }
     }
 
-    /// <summary>
-    /// 使内存缓存失效，下次访问配置属性时会重新读取注册表。
-    /// 通常在外部修改注册表或需要强制刷新配置时调用。
-    /// </summary>
     public void InvalidateCache()
     {
         lock (_lock)
@@ -207,15 +165,11 @@ public sealed class ConfigService
             _bigFont = null;
             _trueTypeFont = null;
             _isInitialized = null;
+            _configPath = null;
             _resolvedAppPaths = null;
         }
     }
 
-    /// <summary>
-    /// 删除所有匹配 CAD 版本注册表中的本插件应用键。
-    /// 用于插件卸载时清理注册表。
-    /// </summary>
-    /// <returns>成功删除的注册表键数量。</returns>
     public int DeleteAllApplicationKeys()
     {
         int deletedCount = 0;
@@ -228,16 +182,199 @@ public sealed class ConfigService
             if (!KeyPatternRegex.IsMatch(name)) continue;
 
             var appKeyPath = $@"{AutoCadBasePath}\{name}\Applications\{AppName}";
-
             if (!RegistryService.KeyExists(Registry.CurrentUser, appKeyPath)) continue;
-
             if (RegistryService.DeleteSubKeyTree(Registry.CurrentUser, appKeyPath))
-            {
                 deletedCount++;
-            }
         }
 
         InvalidateCache();
         return deletedCount;
+    }
+
+    private bool TryLoadFromFile(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return false;
+
+            var text = File.ReadAllText(path, Encoding.UTF8);
+            _mainFont = ReadJsonString(text, "mainFont");
+            _bigFont = ReadJsonString(text, "bigFont");
+            _trueTypeFont = ReadJsonString(text, "trueTypeFont");
+            _isInitialized = ReadJsonBool(text, "isInitialized") ? 1 : 0;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void LoadLegacyRegistryConfig()
+    {
+        var path = GetPrimaryApplicationPath();
+        if (path == null) return;
+
+        _mainFont = RegistryService.ReadString(Registry.CurrentUser, path, "MainFont");
+        _bigFont = RegistryService.ReadString(Registry.CurrentUser, path, "BigFont");
+        _trueTypeFont = RegistryService.ReadString(Registry.CurrentUser, path, "TrueTypeFont");
+        _isInitialized = RegistryService.ReadDword(Registry.CurrentUser, path, "IsInitialized");
+    }
+
+    private void SaveLocked()
+    {
+        var path = _configPath ?? ResolveConfigPath(preferExisting: false);
+        if (TrySave(path))
+        {
+            _configPath = path;
+            return;
+        }
+
+        var fallback = GetAppDataConfigPath();
+        if (TrySave(fallback))
+        {
+            _configPath = fallback;
+        }
+    }
+
+    private bool TrySave(string path)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+
+            File.WriteAllText(path, BuildJson(), Encoding.UTF8);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string BuildJson()
+        => "{\n"
+           + $"  \"mainFont\": \"{EscapeJson(_mainFont ?? string.Empty)}\",\n"
+           + $"  \"bigFont\": \"{EscapeJson(_bigFont ?? string.Empty)}\",\n"
+           + $"  \"trueTypeFont\": \"{EscapeJson(_trueTypeFont ?? string.Empty)}\",\n"
+           + $"  \"isInitialized\": {((_isInitialized ?? 0) == 1 ? "true" : "false")}\n"
+           + "}\n";
+
+    private static string ResolveConfigPath(bool preferExisting)
+    {
+        var dllDir = GetAssemblyDirectory();
+        var dllPath = Path.Combine(dllDir, ConfigFileName);
+        if (preferExisting && File.Exists(dllPath))
+            return dllPath;
+
+        var appDataPath = GetAppDataConfigPath();
+        if (preferExisting && File.Exists(appDataPath))
+            return appDataPath;
+
+        return IsDirectoryWritable(dllDir) ? dllPath : appDataPath;
+    }
+
+    private static string GetAssemblyDirectory()
+    {
+        try
+        {
+            var location = Assembly.GetExecutingAssembly().Location;
+            var dir = string.IsNullOrWhiteSpace(location) ? null : Path.GetDirectoryName(location);
+            if (!string.IsNullOrWhiteSpace(dir))
+                return dir!;
+        }
+        catch { }
+
+        return AppContext.BaseDirectory;
+    }
+
+    private static string GetAppDataConfigPath()
+    {
+        var root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        return Path.Combine(root, "AFR-CADFontAutoReplace", ConfigFileName);
+    }
+
+    private static bool IsDirectoryWritable(string directory)
+    {
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var testFile = Path.Combine(directory, ".afr-write-test-" + Guid.NewGuid().ToString("N"));
+            File.WriteAllText(testFile, string.Empty);
+            File.Delete(testFile);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string ReadJsonString(string text, string name)
+    {
+        var match = Regex.Match(
+            text,
+            $"\"{Regex.Escape(name)}\"\\s*:\\s*\"(?<value>(?:\\\\.|[^\"])*)\"",
+            RegexOptions.IgnoreCase);
+
+        return match.Success ? UnescapeJson(match.Groups["value"].Value) : string.Empty;
+    }
+
+    private static bool ReadJsonBool(string text, string name)
+    {
+        var match = Regex.Match(
+            text,
+            $"\"{Regex.Escape(name)}\"\\s*:\\s*(?<value>true|false|1|0)",
+            RegexOptions.IgnoreCase);
+
+        if (!match.Success) return false;
+        var value = match.Groups["value"].Value;
+        return value == "1" || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string EscapeJson(string value)
+    {
+        var sb = new StringBuilder(value.Length + 8);
+        foreach (var ch in value)
+        {
+            switch (ch)
+            {
+                case '\\': sb.Append(@"\\"); break;
+                case '"': sb.Append("\\\""); break;
+                case '\r': sb.Append(@"\r"); break;
+                case '\n': sb.Append(@"\n"); break;
+                case '\t': sb.Append(@"\t"); break;
+                default: sb.Append(ch); break;
+            }
+        }
+        return sb.ToString();
+    }
+
+    private static string UnescapeJson(string value)
+    {
+        var sb = new StringBuilder(value.Length);
+        for (int i = 0; i < value.Length; i++)
+        {
+            var ch = value[i];
+            if (ch != '\\' || i + 1 >= value.Length)
+            {
+                sb.Append(ch);
+                continue;
+            }
+
+            var next = value[++i];
+            sb.Append(next switch
+            {
+                '\\' => '\\',
+                '"' => '"',
+                'r' => '\r',
+                'n' => '\n',
+                't' => '\t',
+                _ => next
+            });
+        }
+        return sb.ToString();
     }
 }

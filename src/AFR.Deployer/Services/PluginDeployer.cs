@@ -5,7 +5,7 @@ using System.IO;
 namespace AFR.Deployer.Services;
 
 /// <summary>
-/// 插件安装服务：将嵌入的插件 DLL 提取到目标目录，并写入注册表自动加载条目。
+/// 插件安装服务：将部署器同目录的插件 DLL 路径写入注册表自动加载条目。
 /// </summary>
 internal static class PluginDeployer
 {
@@ -17,12 +17,12 @@ internal static class PluginDeployer
     /// 安装指定 CAD 版本的插件。
     /// <para>
     /// 流程：
-    /// 1) 提取 DLL；
+    /// 1) 定位部署器同目录的 DLL；
     /// 2) 通过 <see cref="PluginMetadataReader"/> 从 DLL 中读取版本号、构建标识，
     ///    以及 DLL 自我描述的注册表默认值清单（<c>RegistryDefaultString/Dword</c> 程序集级特性）；
     /// 3) 向该 CAD 版本下的所有配置文件写入 AutoCAD 协议键（LOADER / LOADCTRLS / MANAGED / DESCRIPTION）以及插件版本标识
     ///    （PluginVersion / PluginBuildId）；
-    /// 4) 按 DLL 声明的清单写入默认值，仅当注册表中尚不存在该值时才写入，避免覆盖用户自定义。
+    /// 4) 配置由 DLL 同目录的 AFR.config.json 承载，不再写入注册表配置值。
     /// </para>
     /// <para>
     /// 升级 DLL 时若新增/修改/删除注册表项，仅需调整插件侧的 <c>[assembly: RegistryDefault*]</c> 声明，
@@ -30,31 +30,26 @@ internal static class PluginDeployer
     /// </para>
     /// </summary>
     /// <param name="installation">目标 CAD 版本（来自最新一次扫描结果）。</param>
-    /// <param name="targetDirectory">DLL 的释放目录。</param>
     /// <param name="errorMessage">失败原因，成功时为 null。</param>
     /// <param name="warningMessage">非阻断警告，成功且无警告时为 null。</param>
     /// <returns>true 表示安装成功。</returns>
     internal static bool TryInstall(
         CadInstallation installation,
-        string targetDirectory,
         out string? errorMessage,
         out string? warningMessage)
     {
         warningMessage = null;
         var descriptor = installation.Descriptor;
-        var fileName   = $"{descriptor.AppName}.dll";
+        var fileName = Path.GetFileName(descriptor.EmbeddedResourceKey);
+        if (string.IsNullOrWhiteSpace(fileName))
+            fileName = $"{descriptor.AppName}.dll";
 
-        // 1. 提取 DLL
-        if (!EmbeddedResourceExtractor.TryExtract(
-                descriptor.EmbeddedResourceKey,
-                targetDirectory,
-                fileName,
-                out errorMessage))
+        var dllPath = Path.Combine(AppContext.BaseDirectory, fileName);
+        if (!File.Exists(dllPath))
         {
+            errorMessage = $"未找到同目录插件 DLL：{dllPath}";
             return false;
         }
-
-        var dllPath = Path.Combine(targetDirectory, fileName);
 
         // 2. 从 DLL 中读取元数据（版本、构建标识、注册表默认值清单）。
         if (!PluginMetadataReader.TryRead(dllPath, out var meta, out errorMessage))
@@ -77,31 +72,10 @@ internal static class PluginDeployer
                 key.SetValue("PluginVersion", meta!.DisplayVersion, RegistryValueKind.String);
                 key.SetValue("PluginBuildId", meta.BuildId,        RegistryValueKind.String);
 
-                // DLL 自我描述的默认值。
-                // - String/Dword：写到 Applications\<AppName>，仅在缺失时写入；
-                // - DwordAt：写到 ProfileSubKey\<SubPath>（典型如 FixedProfile\General Configuration），
-                //   按 ForceOverwrite 决定是否覆盖；按 RemoveOnUninstall 在
-                //   Applications\<AppName>\__Owned\<SubPath> 下记录所有权标记，仅当卸载时
-                //   现值仍等于我们写入的内容才清除——保留用户预设与中途手改。
-                foreach (var item in meta.RegistryDefaults)
-                {
-                    switch (item.Kind)
-                    {
-                        case PluginMetadataReader.RegistryDefaultKind.String:
-                            if (key.GetValue(item.Name) is null)
-                                key.SetValue(item.Name, item.StringValue ?? string.Empty, RegistryValueKind.String);
-                            break;
-
-                        case PluginMetadataReader.RegistryDefaultKind.Dword:
-                            if (key.GetValue(item.Name) is null)
-                                key.SetValue(item.Name, item.DwordValue, RegistryValueKind.DWord);
-                            break;
-
-                        case PluginMetadataReader.RegistryDefaultKind.DwordAt:
-                            WriteDwordAt(installation, profileSubKey, key, item);
-                            break;
-                    }
-                }
+                // 仅保留外部 CAD 偏好键写入能力；MainFont/BigFont/TrueTypeFont
+                // 等配置改由 AFR.config.json 承载，不再进入注册表。
+                foreach (var item in meta.RegistryDefaults.Where(item => item.Kind == PluginMetadataReader.RegistryDefaultKind.DwordAt))
+                    WriteDwordAt(installation, profileSubKey, key, item);
             }
 
             errorMessage = null;

@@ -1,15 +1,11 @@
 using AFR.Hosting;
 using AFR.Services;
 
-// 声明插件 DLL 部署时应在注册表中预置的默认配置项。
-// 部署工具（PluginDeployer / PluginUninstaller）与插件 NETLOAD 直装入口
-// （ExternalRegistryDefaultsApplier）共用同一份声明，保证两条入口结果一致。
-// 升级 DLL 时增删/修改注册表项只需调整下面的 [assembly: ...] 声明，无须改部署工具。
+// 声明插件 DLL 部署时可写入的外部 CAD 默认偏好项。
+// 绿色版字体配置保存在 DLL 同目录 AFR.config.json；Applications\<AppName>
+// 注册表键仅用于 AutoCAD 自动加载协议，不再保存 MainFont/BigFont/TrueTypeFont。
 //
 // 写入语义：
-// - RegistryDefaultString / RegistryDefaultDword：写到 Applications\<AppName> 下，
-//   仅当值不存在时写入，从而保留用户已有的自定义设置；卸载时随 Applications\<AppName>
-//   子树整体删除，无需单独管理所有权。
 // - RegistryDefaultDwordAt：写到 <ProfileSubKey>\<SubPath> 下（典型如 FixedProfile\
 //   General Configuration 等 CAD 自身偏好键）。
 //     * ForceOverwrite=false（默认）：仅在值缺失时写入，等同上面两个特性的语义。
@@ -21,12 +17,6 @@ using AFR.Services;
 //
 // AutoCAD 协议键（LOADER / LOADCTRLS / MANAGED / DESCRIPTION）以及插件版本类标识
 // （PluginVersion / PluginBuildId）由部署工具自身管理，不在此处声明。
-
-[assembly: RegistryDefaultString("MainFont",     EmbeddedFontDeployer.DefaultMainFont)]
-[assembly: RegistryDefaultString("BigFont",      EmbeddedFontDeployer.DefaultBigFont)]
-[assembly: RegistryDefaultString("TrueTypeFont", EmbeddedFontDeployer.DefaultTrueTypeFont)]
-[assembly: RegistryDefaultDword ("IsInitialized",       0)]
-[assembly: RegistryDefaultDword ("ConfigSchemaVersion", PluginVersionService.ConfigSchemaVersion)]
 
 // SHX 缺失对话框抑制不在注册表层做：经实测 AutoCAD 并未把"缺少 SHX 文件"对话框的
 // 持久化状态写到注册表（包括 FixedProfile\General Configuration\FileDialog 这类候选）。

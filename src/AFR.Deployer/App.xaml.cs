@@ -54,8 +54,7 @@ public partial class App : Application
 
         var window       = new MainWindow();
         var dialog       = new WpfDialogService(window);
-        var folderPicker = new WpfFolderPickerService();
-        var viewModel    = new MainViewModel(dialog, folderPicker);
+        var viewModel    = new MainViewModel(dialog);
 
         window.Initialize(viewModel);
 

@@ -1,24 +1,20 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    自动构建所有 AutoCAD 插件 DLL，并生成 GitHub Release 发布资产。
+    自动构建绿色版 AFR-Deployer 目录，并生成 GitHub Release 发布资产。
 .DESCRIPTION
     执行步骤：
-      1. 以 Release 配置构建所有 AFR-ACAD20XX 项目
+      1. 以 Release 配置构建所有发布用 AFR-ACAD 项目
          - DLL 与 CAD 元数据 JSON 均保留在标准构建输出目录
            artifacts\bin\AFR-ACAD20XX\release\
       2. 校验每个插件的 Release DLL 与 CAD 元数据 JSON
       3. dotnet publish AFR.Deployer -> 自包含 .NET 10 单文件 EXE
          （已内置 .NET Desktop Runtime 所需组件；无需 Windows App Runtime 等外置依赖）
-      4. 生成版本化发布资产到 artifacts\ReleaseAssets\
-         - AFR-Deployer_vX.Y.Z.exe：部署器 EXE 本体
-         - AFR-DLL_vX.Y.Z.zip：仅 AFR-ACAD*.dll 插件主 DLL
-         - Fonts.zip：字体资源包
+      4. 生成绿色目录 bin\AFR-Deployer\ 与版本化 ZIP
 .OUTPUTS
     <RepoRoot>\publish\AFR.Deployer\AFR.Deployer.exe
-    <RepoRoot>\artifacts\ReleaseAssets\AFR-Deployer_vX.Y.Z.exe
-    <RepoRoot>\artifacts\ReleaseAssets\AFR-DLL_vX.Y.Z.zip
-    <RepoRoot>\artifacts\ReleaseAssets\Fonts.zip
+    <RepoRoot>\bin\AFR-Deployer\
+    <RepoRoot>\artifacts\ReleaseAssets\AFR-Deployer-Green_vX.Y.Z.zip
 .EXAMPLE
     .\tools\Publish-ReleaseAssets.ps1
     .\tools\Publish-ReleaseAssets.ps1 -SkipPluginBuild   # 跳过插件构建，仅重新生成发布资产
@@ -41,11 +37,11 @@ $RepoRoot       = (Resolve-Path "$PSScriptRoot\..").Path
 $PluginsRoot    = Join-Path $RepoRoot "src\AutoCAD"
 $PluginOutputRoot = Join-Path $RepoRoot "artifacts\bin"       # 标准构建输出根目录
 $ReleaseAssetsDir = Join-Path $RepoRoot "artifacts\ReleaseAssets" # GitHub Release 上传资产目录
-$ArchiveTempDir = Join-Path $RepoRoot "artifacts\release-archive-temp"
+$GreenRoot = Join-Path $RepoRoot "bin\AFR-Deployer"
 $DeployerCsproj = Join-Path $RepoRoot "src\AFR.Deployer\AFR.Deployer.csproj"
 $PublishOutput  = Join-Path $RepoRoot "publish\AFR.Deployer"
 $VersionProps    = Join-Path $RepoRoot "Version.props"
-$FontsSourcePath = Join-Path $RepoRoot "chore\Fonts.zip"
+$FontsSourceDir = Join-Path $RepoRoot "src\AFR.HostIntegration\Fonts"
 
 # 自动发现合并后的插件壳项目。
 # TFM 仅用于控制台日志展示；解析失败时回落为 "(unknown)"，不阻断发布流程。
@@ -64,7 +60,8 @@ function Get-PluginTfm([string]$csprojPath) {
 }
 
 $MergedPluginNames = @(
-    'AFR-ACAD2013-2024',
+    'AFR-ACAD2013-2017',
+    'AFR-ACAD2018-2024',
     'AFR-ACAD2025-2026',
     'AFR-ACAD2027'
 )
@@ -156,7 +153,6 @@ if (-not $SkipPluginBuild) {
 }
 
 # ── Step 2：校验标准构建输出 ─────────────────────────────────────────────
-# 部署器项目会直接从 artifacts\bin\AFR-ACAD20XX\release\ 嵌入这些文件。
 Write-Step "校验插件 Release 输出"
 
 $missingInputs = @()
@@ -187,7 +183,7 @@ if ($missingInputs.Count -gt 0) {
 }
 
 # ── Step 3：发布 AFR.Deployer 单文件 EXE ─────────────────────────────────
-# 此处只发布部署器本体；插件 DLL/JSON 由项目文件直接从标准输出目录嵌入。
+# 此处只发布部署器本体；插件 DLL/JSON 由绿色目录同级文件提供。
 Write-Step "发布 AFR.Deployer (自包含单文件)"
 New-Item -ItemType Directory -Force -Path $PublishOutput | Out-Null
 
@@ -200,54 +196,63 @@ if ($LASTEXITCODE -ne 0) {
 $exePath = Join-Path $PublishOutput "AFR-Deployer.exe"
 $sizeMB  = [math]::Round((Get-Item $exePath).Length / 1MB, 1)
 
-# ── Step 4：生成最终发布资产 ────────────────────────────────────────────
+# ── Step 4：生成绿色目录与最终发布资产 ───────────────────────────────────
+Write-Step "生成绿色目录 bin\AFR-Deployer\"
+if (Test-Path -LiteralPath $GreenRoot) {
+    Remove-Item -LiteralPath $GreenRoot -Recurse -Force
+}
+New-Item -ItemType Directory -Force -Path $GreenRoot | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $GreenRoot "Fonts") | Out-Null
+
+Copy-Item -LiteralPath $exePath -Destination (Join-Path $GreenRoot "AFR-Deployer.exe") -Force
+Write-Ok "部署器 EXE → $GreenRoot\AFR-Deployer.exe"
+
+foreach ($p in $Plugins) {
+    $srcDll = Get-PluginReleaseFile $p ".dll"
+    $srcJsonFiles = @(Get-PluginDescriptorFiles $p)
+    Copy-Item -LiteralPath $srcDll -Destination (Join-Path $GreenRoot "$($p.Name).dll") -Force
+    foreach ($json in $srcJsonFiles) {
+        Copy-Item -LiteralPath $json.FullName -Destination (Join-Path $GreenRoot $json.Name) -Force
+    }
+    Write-Ok "$($p.Name).dll + CAD 元数据 JSON × $($srcJsonFiles.Count)"
+}
+
+if (-not (Test-Path -LiteralPath $FontsSourceDir)) {
+    Write-Fail "$FontsSourceDir 不存在，无法生成绿色包 Fonts 目录"
+    exit 1
+}
+$fontFiles = @(Get-ChildItem -LiteralPath $FontsSourceDir -Filter "*.shx" -File)
+if ($fontFiles.Count -eq 0) {
+    Write-Fail "$FontsSourceDir 下没有 .shx 字体文件，无法生成绿色包 Fonts 目录"
+    exit 1
+}
+foreach ($fontFile in $fontFiles) {
+    Copy-Item -LiteralPath $fontFile.FullName -Destination (Join-Path $GreenRoot "Fonts") -Force
+}
+Write-Ok "字体目录 → $GreenRoot\Fonts ($($fontFiles.Count) 个 SHX)"
+
+$defaultConfigPath = Join-Path $GreenRoot "AFR.config.json"
+@'
+{
+  "mainFont": "ming.shx",
+  "bigFont": "tssdchn.shx",
+  "trueTypeFont": "宋体",
+  "isInitialized": true
+}
+'@ | Set-Content -LiteralPath $defaultConfigPath -Encoding UTF8
+Write-Ok "默认配置 → $defaultConfigPath"
+
 Write-Step "生成发布资产到 artifacts\ReleaseAssets\"
 New-Item -ItemType Directory -Force -Path $ReleaseAssetsDir | Out-Null
 
-$versionedExe = Join-Path $ReleaseAssetsDir "AFR-Deployer_$ReleaseTag.exe"
-Copy-Item -LiteralPath $exePath -Destination $versionedExe -Force
-Write-Ok "部署器 EXE → $versionedExe"
-
-$versionedDllZip = Join-Path $ReleaseAssetsDir "AFR-DLL_$ReleaseTag.zip"
-$releaseFontsZip = Join-Path $ReleaseAssetsDir "Fonts.zip"
-if (Test-Path -LiteralPath $ArchiveTempDir) {
-    Remove-Item -LiteralPath $ArchiveTempDir -Recurse -Force
+$versionedGreenZip = Join-Path $ReleaseAssetsDir "AFR-Deployer-Green_$ReleaseTag.zip"
+if (Test-Path -LiteralPath $versionedGreenZip) {
+    Remove-Item -LiteralPath $versionedGreenZip -Force
 }
-New-Item -ItemType Directory -Force -Path $ArchiveTempDir | Out-Null
-
-try {
-    foreach ($p in $Plugins) {
-        $srcDll = Get-PluginReleaseFile $p ".dll"
-        if (-not (Test-Path -LiteralPath $srcDll)) {
-            Write-Fail "$srcDll 不存在，无法生成 DLL 压缩包"
-            exit 1
-        }
-
-        Copy-Item -LiteralPath $srcDll -Destination (Join-Path $ArchiveTempDir "$($p.Name).dll") -Force
-    }
-
-    if (Test-Path -LiteralPath $versionedDllZip) {
-        Remove-Item -LiteralPath $versionedDllZip -Force
-    }
-
-    Compress-Archive -Path (Join-Path $ArchiveTempDir "*.dll") -DestinationPath $versionedDllZip -Force
-    Write-Ok "插件 DLL ZIP → $versionedDllZip"
-} finally {
-    if (Test-Path -LiteralPath $ArchiveTempDir) {
-        Remove-Item -LiteralPath $ArchiveTempDir -Recurse -Force
-    }
-}
-
-if (-not (Test-Path -LiteralPath $FontsSourcePath)) {
-    Write-Fail "$FontsSourcePath 不存在，无法生成字体包发布资产"
-    exit 1
-}
-
-Copy-Item -LiteralPath $FontsSourcePath -Destination $releaseFontsZip -Force
-Write-Ok "字体包 → $releaseFontsZip"
+Compress-Archive -Path (Join-Path $GreenRoot "*") -DestinationPath $versionedGreenZip -Force
+Write-Ok "绿色版 ZIP → $versionedGreenZip"
 
 Write-Host "`n✓ 发布完成！" -ForegroundColor Green
 Write-Host "  输出：$exePath ($sizeMB MB)" -ForegroundColor Green
-Write-Host "  发布资产：$versionedExe" -ForegroundColor Green
-Write-Host "  发布资产：$versionedDllZip" -ForegroundColor Green
-Write-Host "  发布资产：$releaseFontsZip" -ForegroundColor Green
+Write-Host "  绿色目录：$GreenRoot" -ForegroundColor Green
+Write-Host "  发布资产：$versionedGreenZip" -ForegroundColor Green
