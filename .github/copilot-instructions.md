@@ -39,8 +39,8 @@ docs                      使用与开发文档
 - `AFR.Core`、`AFR.UI`、`AFR.HostIntegration`、`AFR.Polyfills` 禁止引用 AutoCAD SDK。
 - `AFR.AutoCAD` 才能持有 AutoCAD 托管 API 类型、命令、Hook 和执行流程。
 - 合并版本壳只负责目标框架、AutoCAD 包版本、`PluginEntry`、`CommandClass` 和发布元数据；运行时平台常量由 `RuntimeAutoCadPlatform` 按 `ACADVER` 选择。
-- `AFR.Deployer` 是独立 `net10.0-windows` WPF 应用，读取同目录 `.cad.json` 与 DLL，不引用 AutoCAD SDK，也不直接引用插件项目。
-- `src/AutoCAD/Directory.Build.targets` 会把 `HandyControl` 嵌入插件 DLL，并在 Release 构建后按 `CadDescriptor` 生成一个或多个 `.cad.json` sidecar。
+- `AFR.Deployer` 是独立 `net10.0-windows` WPF 应用，内置 AutoCAD 版本描述符并从同目录加载插件 DLL，不引用 AutoCAD SDK，也不直接引用插件项目。
+- `src/AutoCAD/Directory.Build.targets` 会把 `HandyControl` 嵌入插件 DLL；发布元数据由部署器内置 `CadDescriptors` 维护。
 - 跨层能力通过 `PlatformManager`、共享项目和明确服务边界协调，不引入无必要的 DI 或抽象层。
 - 修改 Hook、注册表、部署器安装/卸载路径时必须保持小范围变更，并同步文档。
 
@@ -168,7 +168,7 @@ MText 内联运行时映射规则：
 - `app.manifest` 请求 `requireAdministrator`，安装/卸载时应预期 UAC。
 - 不需要 Windows App Runtime 作为外置依赖；不要重新引入该要求，除非代码确实改为依赖 WinAppSDK。
 - 通过 `AFR.HostIntegration` 共用内嵌 SHX 字体释放与 `FixedProfile.aws` 弹窗抑制基础逻辑。
-- 插件 DLL 与 `.cad.json` 从 `artifacts/bin/AFR-ACAD*/release/` 复制到 `bin/AFR-Deployer/`；新增 AutoCAD 版本时优先让发布脚本生成标准构建输出，不手工拼接绿色目录。
+- 插件 DLL 从 `artifacts/bin/AFR-ACAD*/release/` 复制到 `bin/AFR-Deployer/`；新增 AutoCAD 版本时优先让发布脚本生成标准构建输出，不手工拼接绿色目录。
 
 发布资产统一由 `tools/Publish-ReleaseAssets.ps1` 生成。
 
@@ -176,7 +176,7 @@ MText 内联运行时映射规则：
 
 1. 自动发现 `src/AutoCAD/AFR-ACAD*/AFR-ACAD*.csproj`。
 2. Release 构建所有版本壳。
-3. 校验 `artifacts/bin/AFR-ACAD*/release/` 下的 DLL 与 `.cad.json`。
+3. 校验 `artifacts/bin/AFR-ACAD*/release/` 下的 DLL。
 4. 发布 `AFR.Deployer` 自包含单文件 EXE。
 5. 从 `src/AFR.HostIntegration/Fonts/` 复制默认 SHX 字体。
 6. 生成绿色目录与 GitHub Release 上传资产。
@@ -214,6 +214,6 @@ artifacts/ReleaseAssets/AFR-Deployer-Green_vX.Y.Z.zip
 - 发布相关变更应验证 `tools/Publish-ReleaseAssets.ps1`。
 - Hook 变更应验证 `LdFileHook`、`ShpLoadHook` 的真实 `HookHandler` 命中、redirect 计数和样式表写回顺序；`ShpLoadHook` 版本扩展还要复核导出名、实际 RVA 诊断日志、入口 prefix 和 2027 `_N0022` ABI 分支。RVA 不匹配只作为 build 指纹漂移提示，不能替代 prefix / prologue 安装硬闸。
 - 命令变更应验证 `CommandNames.cs`、`CommandMethod`、`CommandClass` 和 Debug/Release 暴露范围。
-- 部署器变更应验证 UAC、注册表扫描、安装/卸载、同目录插件 DLL 和 `.cad.json` 解析。
+- 部署器变更应验证 UAC、注册表扫描、安装/卸载、内置版本描述符和同目录插件 DLL 解析。
 - 文档变更至少运行 `git diff --check`，确保没有空白错误。
 - 新增文档必须能从 README 或开发者指南找到入口，除非它明确是本地临时调查文件。

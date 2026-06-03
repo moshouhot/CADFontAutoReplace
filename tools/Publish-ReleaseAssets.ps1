@@ -5,9 +5,9 @@
 .DESCRIPTION
     执行步骤：
       1. 以 Release 配置构建所有发布用 AFR-ACAD 项目
-         - DLL 与 CAD 元数据 JSON 均保留在标准构建输出目录
+         - DLL 保留在标准构建输出目录
            artifacts\bin\AFR-ACAD20XX\release\
-      2. 校验每个插件的 Release DLL 与 CAD 元数据 JSON
+      2. 校验每个插件的 Release DLL
       3. dotnet publish AFR.Deployer -> 自包含 .NET 10 单文件 EXE
          （已内置 .NET Desktop Runtime 所需组件；无需 Windows App Runtime 等外置依赖）
       4. 生成绿色目录 bin\AFR-Deployer\ 与版本化 ZIP
@@ -97,15 +97,6 @@ function Get-PluginReleaseFile([pscustomobject]$plugin, [string]$extension) {
     return Join-Path $PluginOutputRoot "$($plugin.Name)\release\$($plugin.Name)$extension"
 }
 
-function Get-PluginDescriptorFiles([pscustomobject]$plugin) {
-    $pluginOutput = Join-Path $PluginOutputRoot "$($plugin.Name)\release"
-    if (-not (Test-Path -LiteralPath $pluginOutput)) {
-        return @()
-    }
-
-    return @(Get-ChildItem -LiteralPath $pluginOutput -Filter "$($plugin.Name)*.cad.json" -File)
-}
-
 function Get-ReleaseVersion {
     try {
         [xml]$xml = Get-Content -LiteralPath $VersionProps -Raw
@@ -125,7 +116,7 @@ $ReleaseTag = "v$ReleaseVersion"
 
 # ── Step 1：构建所有插件 DLL ──────────────────────────────────────────────
 # 仅在未指定 -SkipPluginBuild 时执行。
-# 成功后，DLL/JSON 留在 artifacts\bin\AFR-ACAD20XX\release\ 标准输出目录。
+# 成功后，DLL 留在 artifacts\bin\AFR-ACAD20XX\release\ 标准输出目录。
 if (-not $SkipPluginBuild) {
     Write-Step "构建所有 AutoCAD 插件 DLL (Release)"
 
@@ -134,7 +125,7 @@ if (-not $SkipPluginBuild) {
         $csproj = Join-Path $PluginsRoot "$($p.Name)\$($p.Name).csproj"
         Write-Host "  → 构建 $($p.Name) ($($p.TFM))..." -NoNewline
 
-        # 构建单个版本壳项目；构建成功后会在标准输出目录生成 DLL 与 sidecar JSON。
+        # 构建单个版本壳项目；构建成功后会在标准输出目录生成 DLL。
         $output = dotnet build $csproj -c Release --nologo -v quiet 2>&1
         if ($LASTEXITCODE -ne 0) {
             Write-Fail "失败"
@@ -158,21 +149,12 @@ Write-Step "校验插件 Release 输出"
 $missingInputs = @()
 foreach ($p in $Plugins) {
     $srcDll = Get-PluginReleaseFile $p ".dll"
-    $srcJsonFiles = @(Get-PluginDescriptorFiles $p)
 
     if (Test-Path -LiteralPath $srcDll) {
         Write-Ok "$($p.Name).dll"
     } else {
         Write-Fail "$srcDll 不存在"
         $missingInputs += $srcDll
-    }
-
-    if ($srcJsonFiles.Count -gt 0) {
-        Write-Ok "$($p.Name) CAD 元数据 JSON × $($srcJsonFiles.Count)"
-    } else {
-        $expectedJsonPattern = Join-Path $PluginOutputRoot "$($p.Name)\release\$($p.Name)*.cad.json"
-        Write-Fail "$expectedJsonPattern 不存在（请检查 csproj 中的 CadDescriptor 项）"
-        $missingInputs += $expectedJsonPattern
     }
 }
 
@@ -183,7 +165,7 @@ if ($missingInputs.Count -gt 0) {
 }
 
 # ── Step 3：发布 AFR.Deployer 单文件 EXE ─────────────────────────────────
-# 此处只发布部署器本体；插件 DLL/JSON 由绿色目录同级文件提供。
+# 此处只发布部署器本体；插件 DLL 由绿色目录同级文件提供。
 Write-Step "发布 AFR.Deployer (自包含单文件)"
 New-Item -ItemType Directory -Force -Path $PublishOutput | Out-Null
 
@@ -209,12 +191,8 @@ Write-Ok "部署器 EXE → $GreenRoot\AFR-Deployer.exe"
 
 foreach ($p in $Plugins) {
     $srcDll = Get-PluginReleaseFile $p ".dll"
-    $srcJsonFiles = @(Get-PluginDescriptorFiles $p)
     Copy-Item -LiteralPath $srcDll -Destination (Join-Path $GreenRoot "$($p.Name).dll") -Force
-    foreach ($json in $srcJsonFiles) {
-        Copy-Item -LiteralPath $json.FullName -Destination (Join-Path $GreenRoot $json.Name) -Force
-    }
-    Write-Ok "$($p.Name).dll + CAD 元数据 JSON × $($srcJsonFiles.Count)"
+    Write-Ok "$($p.Name).dll"
 }
 
 if (-not (Test-Path -LiteralPath $FontsSourceDir)) {

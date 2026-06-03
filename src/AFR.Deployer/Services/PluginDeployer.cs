@@ -40,11 +40,7 @@ internal static class PluginDeployer
     {
         warningMessage = null;
         var descriptor = installation.Descriptor;
-        var fileName = Path.GetFileName(descriptor.EmbeddedResourceKey);
-        if (string.IsNullOrWhiteSpace(fileName))
-            fileName = $"{descriptor.AppName}.dll";
-
-        var dllPath = Path.Combine(AppContext.BaseDirectory, fileName);
+        var dllPath = Path.Combine(AppContext.BaseDirectory, descriptor.PluginFileName);
         if (!File.Exists(dllPath))
         {
             errorMessage = $"未找到同目录插件 DLL：{dllPath}";

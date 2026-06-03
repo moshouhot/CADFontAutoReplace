@@ -10,26 +10,7 @@
     <NoWarn>$(NoWarn);NU1701</NoWarn>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <Platforms>AnyCPU;x64</Platforms>
-    <CadBrand>AutoCAD</CadBrand>
   </PropertyGroup>
-
-  <ItemGroup>
-    <CadDescriptor Include="2013">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R19.0</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2014">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R19.1</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2015">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R20.0</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2016">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R20.1</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2017">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R21.0</RegistryBasePath>
-    </CadDescriptor>
-  </ItemGroup>
 
   <Import Project="..\..\AFR.Core\AFR.Core.projitems" Label="Shared" />
   <Import Project="..\..\AFR.UI\AFR.UI.projitems" Label="Shared" />

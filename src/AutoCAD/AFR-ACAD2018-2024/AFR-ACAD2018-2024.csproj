@@ -10,32 +10,7 @@
     <NoWarn>$(NoWarn);NU1701</NoWarn>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <Platforms>AnyCPU;x64</Platforms>
-    <CadBrand>AutoCAD</CadBrand>
   </PropertyGroup>
-
-  <ItemGroup>
-    <CadDescriptor Include="2018">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R22.0</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2019">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R23.0</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2020">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R23.1</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2021">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R24.0</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2022">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R24.1</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2023">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R24.2</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2024">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R24.3</RegistryBasePath>
-    </CadDescriptor>
-  </ItemGroup>
 
   <Import Project="..\..\AFR.Core\AFR.Core.projitems" Label="Shared" />
   <Import Project="..\..\AFR.UI\AFR.UI.projitems" Label="Shared" />

@@ -9,17 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <Platforms>AnyCPU;x64</Platforms>
-    <CadBrand>AutoCAD</CadBrand>
   </PropertyGroup>
-
-  <ItemGroup>
-    <CadDescriptor Include="2025">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R25.0</RegistryBasePath>
-    </CadDescriptor>
-    <CadDescriptor Include="2026">
-      <RegistryBasePath>Software\Autodesk\AutoCAD\R25.1</RegistryBasePath>
-    </CadDescriptor>
-  </ItemGroup>
 
   <Import Project="..\..\AFR.Core\AFR.Core.projitems" Label="Shared" />
   <Import Project="..\..\AFR.UI\AFR.UI.projitems" Label="Shared" />

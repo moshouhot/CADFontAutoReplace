@@ -15,45 +15,4 @@
                                Condition="'%(Filename)' == 'HandyControl'" />
     </ItemGroup>
   </Target>
-
-  <!--
-    方案 B：每个插件项目导出 CAD 元数据 JSON Sidecar，作为 AFR.Deployer 描述符表的权威源。
-    需要在 csproj 中声明 CadBrand / CadVersion / CadRegistryBasePath 三个属性；
-    输出路径与插件主 DLL 一致：$(TargetDir)<AppName>.cad.json。
-    发布脚本会把 DLL 与 *.cad.json 放入绿色部署目录，
-    AFR.Deployer 运行时从同目录反序列化生成 CadDescriptor 列表。
-  -->
-  <Target Name="EmitCadDescriptorJson"
-          AfterTargets="Build"
-          Condition="'$(Configuration)' == 'Release' and '$(CadBrand)' != ''">
-    <ItemGroup>
-      <CadDescriptor Include="$(CadVersion)"
-                     Condition="'@(CadDescriptor)' == '' and '$(CadVersion)' != '' and '$(CadRegistryBasePath)' != ''">
-        <RegistryBasePath>$(CadRegistryBasePath)</RegistryBasePath>
-      </CadDescriptor>
-    </ItemGroup>
-    <PropertyGroup>
-      <_CadDescriptorAppName>$(MSBuildProjectName)</_CadDescriptorAppName>
-      <_CadDescriptorResourceKey>$(_CadDescriptorAppName).dll</_CadDescriptorResourceKey>
-    </PropertyGroup>
-    <ItemGroup>
-      <_CadDescriptorJson Include="@(CadDescriptor)">
-        <JsonPath>$(TargetDir)$(_CadDescriptorAppName)-%(CadDescriptor.Identity).cad.json</JsonPath>
-        <JsonText>{
-  "brand": "$(CadBrand)",
-  "version": "%(CadDescriptor.Identity)",
-  "displayName": "$(CadBrand) %(CadDescriptor.Identity)",
-  "registryBasePath": "$([System.String]::Copy('%(CadDescriptor.RegistryBasePath)').Replace('\','\\'))",
-  "appName": "$(_CadDescriptorAppName)",
-  "embeddedResourceKey": "$(_CadDescriptorResourceKey)"
-}</JsonText>
-      </_CadDescriptorJson>
-    </ItemGroup>
-    <MakeDir Directories="$(TargetDir)" />
-    <WriteLinesToFile File="%(_CadDescriptorJson.JsonPath)"
-                      Lines="%(_CadDescriptorJson.JsonText)"
-                      Overwrite="true"
-                      Encoding="UTF-8" />
-    <Message Importance="High" Text="[CAD Descriptor] 已生成 %(_CadDescriptorJson.JsonPath)" />
-  </Target>
 </Project>

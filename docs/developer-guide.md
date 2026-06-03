@@ -201,7 +201,7 @@ docs                      使用与开发文档
 
 - `AFR.Core`、`AFR.UI`、`AFR.HostIntegration`、`AFR.Polyfills` 禁止引用 AutoCAD SDK。
 - `AFR.AutoCAD` 才能持有 AutoCAD 托管 API 类型、事务、编辑器、命令、Hook 和执行流程。
-- `AFR.Deployer` 不引用 AutoCAD SDK，也不直接引用插件项目；它从标准 Release 输出嵌入插件 DLL 与 `.cad.json`。
+- `AFR.Deployer` 不引用 AutoCAD SDK，也不直接引用插件项目；它内置 AutoCAD 版本描述符并从绿色目录同级加载插件 DLL。
 - 版本壳只做版本适配，不承载业务逻辑。
 
 ## 10. 当前执行流程
@@ -308,7 +308,7 @@ docs                      使用与开发文档
 - `AFR.Deployer` 是 `net10.0-windows`、`win-x64`、自包含单文件 WPF 应用。
 - `app.manifest` 请求 `requireAdministrator`，安装/卸载时应预期 UAC。
 - 部署器通过 `AFR.HostIntegration` 共用内嵌 SHX 字体释放和 `FixedProfile.aws` 弹窗抑制能力。
-- 插件 DLL 与 `.cad.json` 从 `artifacts/bin/AFR-ACAD*/release/` 复制到 `bin/AFR-Deployer/`，部署器从同目录读取。
+- 插件 DLL 从 `artifacts/bin/AFR-ACAD*/release/` 复制到 `bin/AFR-Deployer/`，部署器按内置版本描述符从同目录读取。
 - 不需要 Windows App Runtime 作为外置依赖；不要重新引入该要求，除非代码确实改为依赖 WinAppSDK。
 
 发布资产由 `tools/Publish-ReleaseAssets.ps1` 统一生成：
@@ -359,7 +359,7 @@ Hook 变更：
 部署器变更：
 
 - 检查 UAC、注册表扫描、安装、卸载。
-- 检查插件 DLL 和 `.cad.json` 嵌入资源。
+- 检查插件 DLL 输出、内置版本描述符和同目录加载路径。
 - 检查 `FixedProfile.aws` 和字体释放路径。
 - 发布相关变更验证 `tools/Publish-ReleaseAssets.ps1`。
 
