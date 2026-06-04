@@ -6,11 +6,11 @@ using Microsoft.Win32;
 namespace AFR.Deployer.Services;
 
 /// <summary>
-/// 部署器侧的内嵌 SHX 字体释放器。
+/// 部署器侧的 SHX 字体释放器。
 /// <para>
 /// 通过注册表（先 HKLM 再 HKCU）解析每个 CAD 配置文件实例的 <c>AcadLocation</c>，
-/// 拼出 <c>&lt;AcadLocation&gt;\Fonts</c> 后调用共享的 <see cref="EmbeddedFontExtractor"/>
-/// 把 Deployer EXE 内嵌的默认字体释放到磁盘。
+/// 拼出 <c>&lt;AcadLocation&gt;\Fonts</c> 后，优先从绿色目录 <c>Fonts\</c>
+/// 复制当前配置的 SHX 字体；默认字体缺失时再回退到内嵌资源。
 /// </para>
 /// <para>
 /// 与 NETLOAD 路径下 <c>AFR.Hosting.EmbeddedFontDeployer</c> 行为一致：
@@ -39,9 +39,71 @@ internal static class EmbeddedFontPatcher
 
         if (fontDirs.Count == 0) return false;
 
+        var config = DeployerFontConfigService.Load();
         var assembly = typeof(EmbeddedFontPatcher).Assembly;
-        return fontDirs.All(fontsDir => EmbeddedFontExtractor.ExtractAll(assembly, fontsDir!, out _));
+        return fontDirs.All(fontsDir => CopyConfiguredFonts(config, assembly, fontsDir!, out _));
     }
+
+    private static bool CopyConfiguredFonts(DeployerFontConfig config, System.Reflection.Assembly fallbackAssembly, string targetDirectory, out string? errorMessage)
+    {
+        errorMessage = null;
+        var fontFiles = new[]
+        {
+            config.MainFont,
+            config.BigFont,
+        }
+        .Where(fileName => !string.IsNullOrWhiteSpace(fileName))
+        .Select(fileName => Path.GetFileName(fileName.Trim()))
+        .Where(fileName => !string.IsNullOrWhiteSpace(fileName))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+        if (fontFiles.Count == 0)
+            return true;
+
+        bool allSuccess = true;
+        foreach (var fileName in fontFiles)
+        {
+            var targetPath = Path.Combine(targetDirectory, fileName!);
+            if (File.Exists(targetPath)) continue;
+
+            var sourcePath = DeployerFontConfigService.FindGreenFontFile(fileName!);
+            if (sourcePath is not null)
+            {
+                try
+                {
+                    File.Copy(sourcePath, targetPath, overwrite: false);
+                    continue;
+                }
+                catch (IOException) when (File.Exists(targetPath))
+                {
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    allSuccess = false;
+                    errorMessage ??= $"复制 {fileName} 到 {targetDirectory} 失败：{ex.Message}";
+                    continue;
+                }
+            }
+
+            if (IsEmbeddedDefaultFont(fileName!)
+                && EmbeddedFontExtractor.ExtractOne(fallbackAssembly, EmbeddedFontExtractor.ResourcePrefix + fileName, targetPath, out var err))
+            {
+                continue;
+            }
+
+            allSuccess = false;
+            errorMessage ??= sourcePath is null
+                ? $"绿色目录 Fonts 中未找到配置字体：{fileName}"
+                : $"释放 {fileName} 失败";
+        }
+
+        return allSuccess;
+    }
+
+    private static bool IsEmbeddedDefaultFont(string fileName)
+        => EmbeddedFontExtractor.EmbeddedFontFiles.Contains(fileName, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// 从注册表解析指定配置文件实例的 <c>&lt;AcadLocation&gt;\Fonts</c>。

@@ -38,7 +38,7 @@
 6. 工具会自动完成：
    - 将注册表 `LOADER` 指向绿色目录中的对应版本 DLL；
    - 在注册表写入自动加载项；
-   - 释放内嵌默认 SHX 字体到各 CAD 的 `Fonts` 目录；
+   - 将绿色目录 `Fonts` 中配置的 SHX 字体复制到各 CAD 的 `Fonts` 目录；
    - 写入 `FixedProfile.aws` 以抑制“缺少 SHX 文件”弹窗。
 7. 启动 AutoCAD 后，插件自动生效。
 
@@ -59,19 +59,21 @@
 
 ### 首次配置与验证
 
-1. 首次安装后启动 AutoCAD，插件会自动将内置默认字体释放到 CAD 的 `Fonts` 目录。
-2. 插件会自动写入默认配置：
+1. 首次安装前可在部署器中配置三类替换字体；SHX 字体列表来自绿色目录 `Fonts\`，可自行放入需要的 `.shx` 文件后点击“刷新”。
+2. 点击“保存”会写入绿色目录同级 `AFR.config.json`；直接点击“安装”也会先保存当前字体配置。
+3. 安装时部署器会把配置的 SHX 主字体和大字体复制到 CAD 的 `Fonts` 目录；已存在同名文件会跳过，不覆盖用户文件。
+4. 默认配置为：
    - SHX 主字体：`ming.shx`
    - SHX 大字体：`tssdchn.shx`
    - TrueType 字体：`宋体`
-3. 如需修改默认配置，可在 AutoCAD 中输入 `AFR`，重新配置三类替换字体。
+5. 安装后也可在 AutoCAD 中输入 `AFR`，重新配置三类替换字体。
 
 > 字体精简建议：
 > - 建议将 CAD 安装目录 `Fonts` 中 SHX 字体精简至 100 个以内；
 > - 保留 `sas_____.pfb`、`MstnFontConfig.xml`、`internat.rsc`、`font.rsc` 等非 SHX 文件；
 > - 字体过多会导致插件界面加载明显卡顿。
 >
-> 绿色包内置 `Fonts\ming.shx` 和 `Fonts\tssdchn.shx`，无需单独下载字体包。
+> 绿色包默认包含 `Fonts\ming.shx` 和 `Fonts\tssdchn.shx`；需要其它 SHX 时放入绿色目录 `Fonts\`，再在部署器中选择。
 
 打开有缺失字体的 DWG，看到类似日志即说明插件已执行：
 
@@ -149,7 +151,7 @@ AFR 缺失字体自动替换 v9.1.0
 <details>
 <summary><b>如何修改替换字体配置？</b></summary>
 
-随时输入 `AFR`，重新选择字体并确认即可。新配置会立即对当前图纸生效。
+部署前可在 `AFR-Deployer.exe` 的字体配置区选择并保存；SHX 字体来自绿色目录 `Fonts\`。部署后也可在 AutoCAD 中输入 `AFR`，重新选择字体并确认，新配置会立即对当前图纸生效。
 
 </details>
 

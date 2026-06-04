@@ -110,4 +110,5 @@ artifacts/ReleaseAssets/AFR-Deployer-Green_vX.Y.Z.zip
 - `AFR` 能完成字体配置和当前图纸处理。
 - `AFRLOG` 能展示样式表检测、替换状态和真实文件级运行时映射。
 - `LdFileHook`、`ShpLoadHook` 在各自边界内工作，启动日志只显示这两个默认字体 Hook；2027 的 `ShpLoadHook` 日志应显示 `_N0022 bool/bool` ABI。
+- `AFR-Deployer.exe` 能保存 `AFR.config.json`，从绿色目录 `Fonts\` 刷新 SHX 列表，并在安装时复制配置字体到 CAD `Fonts` 目录。
 - 发布脚本能生成绿色目录和 `AFR-Deployer-Green_vX.Y.Z.zip`。

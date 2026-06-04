@@ -167,8 +167,9 @@ MText 内联运行时映射规则：
 - 目标框架为 `net10.0-windows`，`win-x64`，自包含单文件发布。
 - `app.manifest` 请求 `requireAdministrator`，安装/卸载时应预期 UAC。
 - 不需要 Windows App Runtime 作为外置依赖；不要重新引入该要求，除非代码确实改为依赖 WinAppSDK。
-- 通过 `AFR.HostIntegration` 共用内嵌 SHX 字体释放与 `FixedProfile.aws` 弹窗抑制基础逻辑。
+- 通过 `AFR.HostIntegration` 共用默认 SHX 字体兜底与 `FixedProfile.aws` 弹窗抑制基础逻辑；部署器安装时优先从绿色目录 `Fonts\` 复制当前配置的 SHX 字体到 CAD `Fonts` 目录。
 - 插件 DLL 从 `artifacts/bin/AFR-ACAD*/release/` 复制到 `bin/AFR-Deployer/`；新增 AutoCAD 版本时优先让发布脚本生成标准构建输出，不手工拼接绿色目录。
+- 部署器 GUI 负责保存 `AFR.config.json` 中的 `mainFont` / `bigFont` / `trueTypeFont`；SHX 下拉列表来自同目录 `Fonts\*.shx`，用户可自行放入字体后刷新。
 
 发布资产统一由 `tools/Publish-ReleaseAssets.ps1` 生成。
 
@@ -178,7 +179,7 @@ MText 内联运行时映射规则：
 2. Release 构建所有版本壳。
 3. 校验 `artifacts/bin/AFR-ACAD*/release/` 下的 DLL。
 4. 发布 `AFR.Deployer` 自包含单文件 EXE。
-5. 从 `src/AFR.HostIntegration/Fonts/` 复制默认 SHX 字体。
+5. 从 `src/AFR.HostIntegration/Fonts/` 复制默认 SHX 字体到绿色目录 `Fonts\`。
 6. 生成绿色目录与 GitHub Release 上传资产。
 
 输出约定：
@@ -214,6 +215,6 @@ artifacts/ReleaseAssets/AFR-Deployer-Green_vX.Y.Z.zip
 - 发布相关变更应验证 `tools/Publish-ReleaseAssets.ps1`。
 - Hook 变更应验证 `LdFileHook`、`ShpLoadHook` 的真实 `HookHandler` 命中、redirect 计数和样式表写回顺序；`ShpLoadHook` 版本扩展还要复核导出名、实际 RVA 诊断日志、入口 prefix 和 2027 `_N0022` ABI 分支。RVA 不匹配只作为 build 指纹漂移提示，不能替代 prefix / prologue 安装硬闸。
 - 命令变更应验证 `CommandNames.cs`、`CommandMethod`、`CommandClass` 和 Debug/Release 暴露范围。
-- 部署器变更应验证 UAC、注册表扫描、安装/卸载、内置版本描述符和同目录插件 DLL 解析。
+- 部署器变更应验证 UAC、注册表扫描、安装/卸载、内置版本描述符、同目录插件 DLL 解析、`AFR.config.json` 保存和绿色目录 `Fonts\` 到 CAD `Fonts` 的复制路径。
 - 文档变更至少运行 `git diff --check`，确保没有空白错误。
 - 新增文档必须能从 README 或开发者指南找到入口，除非它明确是本地临时调查文件。

@@ -79,7 +79,7 @@ dotnet build CADFontAutoReplace.slnx
 
 ### 部署器安装
 
-适合验证发布/安装链路。部署器会扫描本机 AutoCAD、写注册表、复制插件 DLL、释放字体并处理 `FixedProfile.aws`。部署器相关改动必须检查 UAC、注册表、安装和卸载，不要只看 UI 能打开。
+适合验证发布/安装链路。部署器会扫描本机 AutoCAD、写注册表、复制插件 DLL、保存 `AFR.config.json`、从绿色目录 `Fonts\` 复制配置的 SHX 字体并处理 `FixedProfile.aws`。部署器相关改动必须检查 UAC、注册表、安装和卸载，不要只看 UI 能打开。
 
 加载后先确认实际 DLL 路径。最常见的新手问题是源码改了，但 CAD 仍在运行旧部署目录里的 DLL。
 
@@ -115,7 +115,7 @@ Hook 诊断必须分清三层：安装成功、收到 native 请求、实际 red
 | 改样式表替换 | `FontReplacer`、`ExecutionController`、`AFRLOG` | SHX 主字体、大字体、TrueType、样式表 `@TrueType` 都覆盖 |
 | 改 Hook | `LdFileHook`、`ShpLoadHook`、`NativeFontHookProfile` | 真实 `HookHandler` hit/redirect，2027 ABI 和 fail-closed 行为正确 |
 | 改 AFRLOG | `AfrCommands`、`DocumentContextManager`、UI ViewModel | 原始检测、仍缺失、运行时映射三类数据来源不混淆 |
-| 改部署器 | `src/AFR.Deployer`、`AFR.HostIntegration` | UAC、注册表、同目录 DLL/JSON、安装/卸载、字体释放都验证 |
+| 改部署器 | `src/AFR.Deployer`、`AFR.HostIntegration` | UAC、注册表、同目录 DLL、`AFR.config.json`、绿色目录 `Fonts\`、安装/卸载都验证 |
 | 改发布流程 | `Publish-ReleaseAssets.ps1`、Release workflow、`Version.props` | 绿色目录与版本化绿色 ZIP 生成正确 |
 | 改文档 | README、本文、交接文档、仓库记忆 | 搜索旧入口和历史链路，确认没有误导性残留 |
 
@@ -307,8 +307,9 @@ docs                      使用与开发文档
 
 - `AFR.Deployer` 是 `net10.0-windows`、`win-x64`、自包含单文件 WPF 应用。
 - `app.manifest` 请求 `requireAdministrator`，安装/卸载时应预期 UAC。
-- 部署器通过 `AFR.HostIntegration` 共用内嵌 SHX 字体释放和 `FixedProfile.aws` 弹窗抑制能力。
+- 部署器通过 `AFR.HostIntegration` 共用默认 SHX 字体兜底和 `FixedProfile.aws` 弹窗抑制能力；安装时优先从绿色目录 `Fonts\` 复制当前配置的 SHX 字体。
 - 插件 DLL 从 `artifacts/bin/AFR-ACAD*/release/` 复制到 `bin/AFR-Deployer/`，部署器按内置版本描述符从同目录读取。
+- 字体配置由部署器 GUI 写入 `bin/AFR-Deployer/AFR.config.json`；SHX 下拉项来自 `bin/AFR-Deployer/Fonts/*.shx`，用户可自行放入字体后刷新。
 - 不需要 Windows App Runtime 作为外置依赖；不要重新引入该要求，除非代码确实改为依赖 WinAppSDK。
 
 发布资产由 `tools/Publish-ReleaseAssets.ps1` 统一生成：
@@ -360,7 +361,7 @@ Hook 变更：
 
 - 检查 UAC、注册表扫描、安装、卸载。
 - 检查插件 DLL 输出、内置版本描述符和同目录加载路径。
-- 检查 `FixedProfile.aws` 和字体释放路径。
+- 检查 `AFR.config.json` 保存、绿色目录 `Fonts\` 扫描、配置 SHX 字体复制到 `<AcadLocation>\Fonts`，以及 `FixedProfile.aws` 路径。
 - 发布相关变更验证 `tools/Publish-ReleaseAssets.ps1`。
 
 文档变更：

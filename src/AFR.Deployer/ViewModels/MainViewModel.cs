@@ -196,9 +196,26 @@ internal sealed partial class MainViewModel : ObservableObject
     /// <summary>DataGrid 数据源。</summary>
     public ObservableCollection<CadEntryViewModel> CadEntries { get; } = [];
 
+    /// <summary>绿色目录 Fonts 下可选的 SHX 字体。</summary>
+    public ObservableCollection<string> AvailableShxFonts { get; } = [];
+
+    /// <summary>系统可选 TrueType 字体。</summary>
+    public ObservableCollection<string> AvailableTrueTypeFonts { get; } = [];
+
+    [ObservableProperty]
+    public partial string SelectedMainFont { get; set; } = DeployerFontConfigService.DefaultMainFont;
+
+    [ObservableProperty]
+    public partial string SelectedBigFont { get; set; } = DeployerFontConfigService.DefaultBigFont;
+
+    [ObservableProperty]
+    public partial string SelectedTrueTypeFont { get; set; } = DeployerFontConfigService.DefaultTrueTypeFont;
+
     internal MainViewModel(IDialogService dialog)
     {
         _dialog = dialog;
+
+        LoadFontConfig();
 
         // ── 进程实时监听（WMI）：尽快感知 CAD 启动与退出。
         _processWatcher.StateChanged += OnProcessChanged;
@@ -237,6 +254,35 @@ internal sealed partial class MainViewModel : ObservableObject
         Refresh();
         CheckCadProcesses();
         _ = CheckForUpdatesAsync();
+    }
+
+    private void LoadFontConfig()
+    {
+        RefreshFontOptions();
+        var config = DeployerFontConfigService.Load();
+        SelectedMainFont = config.MainFont;
+        SelectedBigFont = config.BigFont;
+        SelectedTrueTypeFont = config.TrueTypeFont;
+    }
+
+    private void RefreshFontOptions()
+    {
+        ReplaceItems(AvailableShxFonts, DeployerFontConfigService.ScanShxFonts());
+        ReplaceItems(AvailableTrueTypeFonts, DeployerFontConfigService.ScanTrueTypeFonts());
+    }
+
+    private DeployerFontConfig CurrentFontConfig()
+        => new(
+            SelectedMainFont,
+            SelectedBigFont,
+            SelectedTrueTypeFont,
+            true);
+
+    private static void ReplaceItems(ObservableCollection<string> target, IReadOnlyList<string> values)
+    {
+        target.Clear();
+        foreach (var value in values)
+            target.Add(value);
     }
 
     /// <summary>取 RegistryBasePath 的品牌根，如 R25.0 → AutoCAD。</summary>
@@ -466,6 +512,28 @@ internal sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    private void ReloadFontOptions()
+    {
+        RefreshFontOptions();
+        StatusText = "已刷新绿色目录 Fonts 字体列表";
+    }
+
+    [RelayCommand]
+    private async Task SaveFontConfigAsync()
+    {
+        try
+        {
+            DeployerFontConfigService.Save(CurrentFontConfig());
+            LoadFontConfig();
+            StatusText = "✓ 字体配置已保存到 AFR.config.json";
+        }
+        catch (Exception ex)
+        {
+            await _dialog.ShowWarningAsync($"保存字体配置失败：{ex.Message}", "AFR 部署工具 — 字体配置");
+        }
+    }
+
     // ── 安装 ──
 
     [RelayCommand(CanExecute = nameof(CanOperate))]
@@ -480,6 +548,17 @@ internal sealed partial class MainViewModel : ObservableObject
 
         var freshResults = CadRegistryScanner.Scan()
             .ToDictionary(r => r.Descriptor.AppName);
+
+        try
+        {
+            DeployerFontConfigService.Save(CurrentFontConfig());
+            LoadFontConfig();
+        }
+        catch (Exception ex)
+        {
+            await _dialog.ShowWarningAsync($"保存字体配置失败：{ex.Message}", "AFR 部署工具 — 字体配置");
+            return;
+        }
 
         IsBusy     = true;
         StatusText = "正在安装……";
@@ -507,12 +586,12 @@ internal sealed partial class MainViewModel : ObservableObject
                     if (!string.IsNullOrWhiteSpace(installWarning))
                         warnings.Add($"{fresh.Descriptor.DisplayName}：{installWarning}");
 
-                    // 释放内嵌 SHX 字体到当前实例对应的 <AcadLocation>\Fonts。
+                    // 复制配置的 SHX 字体到当前实例对应的 <AcadLocation>\Fonts。
                     // 失败仅记录警告，不阻断安装主流程。
                     try
                     {
                         if (!EmbeddedFontPatcher.Apply(fresh))
-                            warnings.Add($"{fresh.Descriptor.DisplayName}：默认 SHX 字体释放失败，请手动在CAD中运行AFR插件进行字体配置");
+                            warnings.Add($"{fresh.Descriptor.DisplayName}：配置的 SHX 字体复制失败，请检查绿色目录 Fonts 中是否存在对应字体文件");
                     }
                     catch { /* 字体释放失败不影响安装主流程 */ }
                 }
