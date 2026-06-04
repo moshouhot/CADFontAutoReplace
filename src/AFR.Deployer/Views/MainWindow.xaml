@@ -114,8 +114,9 @@
                                 </Trigger.ExitActions>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="PART_Border" Property="BorderBrush" Value="#3FAE6A" />
-                                <Setter TargetName="PART_Border" Property="BorderThickness" Value="1.5" />
+                                <Setter TargetName="PART_Border" Property="Background" Value="#F0FFF6" />
+                                <Setter TargetName="PART_Border" Property="BorderBrush" Value="#16A34A" />
+                                <Setter TargetName="PART_Border" Property="BorderThickness" Value="2" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.55" />
@@ -163,14 +164,108 @@
         <Style x:Key="FontComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
             <Setter Property="Height" Value="34" />
             <Setter Property="MinWidth" Value="205" />
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Microsoft YaHei UI" />
-            <Setter Property="Padding" Value="10,0,6,0" />
+            <Setter Property="Padding" Value="10,0,0,0" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="MaxDropDownHeight" Value="260" />
             <Setter Property="ItemContainerStyle" Value="{StaticResource FontComboBoxItemStyle}" />
             <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=Text}" />
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="FontComboBox_PreviewMouseLeftButtonDown" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid SnapsToDevicePixels="True">
+                            <Border x:Name="PART_Border"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="30" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBox x:Name="PART_EditableTextBox"
+                                             Grid.Column="0"
+                                             Margin="10,0,0,0"
+                                             Padding="0"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             FocusVisualStyle="{x:Null}"
+                                             FontFamily="{TemplateBinding FontFamily}"
+                                             FontSize="{TemplateBinding FontSize}"
+                                             Foreground="{TemplateBinding Foreground}"
+                                             HorizontalContentAlignment="Left"
+                                             VerticalContentAlignment="Center"
+                                             IsReadOnly="{Binding IsReadOnly, RelativeSource={RelativeSource TemplatedParent}}"
+                                             Focusable="True">
+                                        <TextBox.Template>
+                                            <ControlTemplate TargetType="TextBox">
+                                                <Border Background="{TemplateBinding Background}"
+                                                        BorderThickness="0">
+                                                    <ScrollViewer x:Name="PART_ContentHost"
+                                                                  VerticalAlignment="Center" />
+                                                </Border>
+                                            </ControlTemplate>
+                                        </TextBox.Template>
+                                    </TextBox>
+
+                                    <ToggleButton Grid.Column="1"
+                                                  Focusable="False"
+                                                  Background="Transparent"
+                                                  BorderThickness="0"
+                                                  IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                        <Path Width="8"
+                                              Height="5"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Fill="{DynamicResource TextFillColorSecondaryBrush}"
+                                              Stretch="Uniform"
+                                              Data="M 0 0 L 4 4 L 8 0 Z" />
+                                    </ToggleButton>
+                                </Grid>
+                            </Border>
+
+                            <Popup x:Name="PART_Popup"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                   Placement="Bottom"
+                                   PopupAnimation="Slide"
+                                   Width="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                                <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <ScrollViewer CanContentScroll="True"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="PART_Border" Property="BorderBrush" Value="#0F6CBD" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="PART_Border" Property="BorderBrush" Value="#0F6CBD" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.65" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </ui:FluentWindow.Resources>
 
@@ -342,6 +437,22 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
+                                        <Border Grid.ColumnSpan="2"
+                                                Width="22"
+                                                Height="22"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Top"
+                                                Background="#16A34A"
+                                                CornerRadius="11"
+                                                Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}"
+                                                IsHitTestVisible="False">
+                                            <ui:SymbolIcon Symbol="Checkmark24"
+                                                           FontSize="13"
+                                                           Foreground="White"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                        </Border>
+
                                         <!-- 左：AutoCAD 品牌图标（外圈轻阴影，强化卡片层次） -->
                                         <Grid Grid.Column="0" Style="{StaticResource BrandLogoStyle}"
                                               VerticalAlignment="Center">
@@ -503,13 +614,60 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0"
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="安装只写入注册表，LOADER 指向本目录中的插件 DLL。"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <ui:Button Grid.Column="1"
+                                   Content="全选"
+                                   Appearance="Secondary"
+                                   Style="{StaticResource ActionButtonStyle}"
+                                   Icon="{ui:SymbolIcon CheckmarkSquare24}"
+                                   Command="{Binding SelectAllCadEntriesCommand}"
+                                   MinWidth="82" />
+                        <ui:Button Grid.Column="2"
+                                   Content="取消全选"
+                                   Appearance="Secondary"
+                                   Style="{StaticResource ActionButtonStyle}"
+                                   Icon="{ui:SymbolIcon DismissSquare24}"
+                                   Command="{Binding UnselectAllCadEntriesCommand}"
+                                   MinWidth="102"
+                                   Margin="8,0,0,0" />
+                        <ui:Button Grid.Column="3"
+                                   Content="卸载已选版本"
+                                   Appearance="Secondary"
+                                   Style="{StaticResource ActionButtonStyle}"
+                                   Icon="{ui:SymbolIcon Delete24}"
+                                   Command="{Binding UninstallCommand}"
+                                   MinWidth="120"
+                                   Margin="8,0,0,0" />
+                        <ui:Button Grid.Column="4"
+                                   Content="安装选中版本"
+                                   Appearance="Primary"
+                                   Style="{StaticResource ActionButtonStyle}"
+                                   Icon="{ui:SymbolIcon ArrowDownload24}"
+                                   Command="{Binding InstallCommand}"
+                                   MinWidth="132"
+                                   Margin="8,0,0,0" />
+                    </Grid>
+
+                    <TextBlock Grid.Row="1"
                                Text="绿色目录"
                                FontSize="13"
                                FontWeight="SemiBold"
                                Margin="0,0,0,8" />
 
-                    <Grid Grid.Row="1">
+                    <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
@@ -520,7 +678,7 @@
                                     PlaceholderText="绿色目录" />
                     </Grid>
 
-                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                    <Grid Grid.Row="3" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="1.15*" MinWidth="205" />
                             <ColumnDefinition Width="1.15*" MinWidth="205" />
@@ -582,34 +740,6 @@
                                    MinWidth="82"
                                    Margin="8,0,0,0"
                                    VerticalAlignment="Bottom" />
-                    </Grid>
-
-                    <Grid Grid.Row="3" Margin="0,12,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0"
-                                   Text="安装只写入注册表，LOADER 指向本目录中的插件 DLL。"
-                                   VerticalAlignment="Center"
-                                   FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <ui:Button Grid.Column="1"
-                                   Content="卸载已选版本"
-                                   Appearance="Secondary"
-                                   Style="{StaticResource ActionButtonStyle}"
-                                   Icon="{ui:SymbolIcon Delete24}"
-                                   Command="{Binding UninstallCommand}"
-                                   MinWidth="120" />
-                        <ui:Button Grid.Column="2"
-                                   Content="安装选中版本"
-                                   Appearance="Primary"
-                                   Style="{StaticResource ActionButtonStyle}"
-                                   Icon="{ui:SymbolIcon ArrowDownload24}"
-                                   Command="{Binding InstallCommand}"
-                                   MinWidth="132"
-                                   Margin="10,0,0,0" />
                     </Grid>
                 </Grid>
             </Border>

@@ -365,6 +365,19 @@ public sealed class ConfigService
             }
 
             var next = value[++i];
+            if (next == 'u' && i + 4 < value.Length)
+            {
+                var hex = value.Substring(i + 1, 4);
+                if (int.TryParse(hex, System.Globalization.NumberStyles.HexNumber,
+                                 System.Globalization.CultureInfo.InvariantCulture,
+                                 out var codePoint))
+                {
+                    sb.Append((char)codePoint);
+                    i += 4;
+                    continue;
+                }
+            }
+
             sb.Append(next switch
             {
                 '\\' => '\\',
@@ -372,6 +385,8 @@ public sealed class ConfigService
                 'r' => '\r',
                 'n' => '\n',
                 't' => '\t',
+                'b' => '\b',
+                'f' => '\f',
                 _ => next
             });
         }

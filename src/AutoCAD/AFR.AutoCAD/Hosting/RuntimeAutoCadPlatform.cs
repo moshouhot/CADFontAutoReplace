@@ -16,11 +16,13 @@ internal sealed class RuntimeAutoCadPlatform : ICadPlatform, INativeFontHookExpo
 
     private RuntimeAutoCadPlatform(
         string versionName,
+        string appName,
         string registryRelease,
         string acDbDllName,
         NativeFontHookProfile? nativeFontHookProfile)
     {
         VersionName = versionName;
+        AppName = appName;
         RegistryBasePath = $@"Software\Autodesk\AutoCAD\{registryRelease}";
         AcDbDllName = acDbDllName;
         NativeFontHookProfile = nativeFontHookProfile ?? DisabledHookProfile();
@@ -29,7 +31,7 @@ internal sealed class RuntimeAutoCadPlatform : ICadPlatform, INativeFontHookExpo
 
     public string BrandName => "AutoCAD";
     public string VersionName { get; }
-    public string AppName => $"AFR-ACAD{VersionName}";
+    public string AppName { get; }
     public string DisplayName => $"AutoCAD {VersionName}";
     public string RegistryBasePath { get; }
     public string RegistryKeyPattern => @"^ACAD-[A-Za-z0-9]+:[A-Za-z0-9]+$";
@@ -113,6 +115,7 @@ internal sealed class RuntimeAutoCadPlatform : ICadPlatform, INativeFontHookExpo
             ["2026"] = WithNativeHook("2026", "R25.1", "acdb25.dll", 0xD87AC, 0x5B124, Prefix2021PlusLdFile(), Prefix2022PlusShpLoad()),
             ["2027"] = new RuntimeAutoCadPlatform(
                 "2027",
+                "AFR-ACAD2027",
                 "R26.0",
                 "acdb26.dll",
                 new NativeFontHookProfile(
@@ -131,7 +134,7 @@ internal sealed class RuntimeAutoCadPlatform : ICadPlatform, INativeFontHookExpo
         };
 
     private static RuntimeAutoCadPlatform NoNativeHook(string version, string registryRelease, string acDbDllName)
-        => new(version, registryRelease, acDbDllName, null);
+        => new(version, MergedAppName(version), registryRelease, acDbDllName, null);
 
     private static RuntimeAutoCadPlatform WithNativeHook(
         string version,
@@ -143,6 +146,7 @@ internal sealed class RuntimeAutoCadPlatform : ICadPlatform, INativeFontHookExpo
         byte[] shpLoadPrefix)
         => new(
             version,
+            MergedAppName(version),
             registryRelease,
             acDbDllName,
             new NativeFontHookProfile(
@@ -158,6 +162,16 @@ internal sealed class RuntimeAutoCadPlatform : ICadPlatform, INativeFontHookExpo
                     shpLoadRva,
                     shpLoadPrefix,
                     maxPrologueSize: 64)));
+
+    private static string MergedAppName(string version)
+        => version switch
+        {
+            "2013" or "2014" or "2015" or "2016" or "2017" => "AFR-ACAD2013-2017",
+            "2018" or "2019" or "2020" or "2021" or "2022" or "2023" or "2024" => "AFR-ACAD2018-2024",
+            "2025" or "2026" => "AFR-ACAD2025-2026",
+            "2027" => "AFR-ACAD2027",
+            _ => $"AFR-ACAD{version}"
+        };
 
     private static NativeFontHookProfile DisabledHookProfile()
         => new(

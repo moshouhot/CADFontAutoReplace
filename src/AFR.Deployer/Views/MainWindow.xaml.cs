@@ -44,6 +44,23 @@ public partial class MainWindow : FluentWindow
         _ = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
     }
 
+    private void FontComboBox_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is not ComboBox comboBox || !comboBox.IsEnabled) return;
+        if (comboBox.IsDropDownOpen) return;
+
+        comboBox.ApplyTemplate();
+        comboBox.Focus();
+        comboBox.IsDropDownOpen = true;
+
+        if (comboBox.Template.FindName("PART_EditableTextBox", comboBox) is System.Windows.Controls.TextBox textBox)
+        {
+            textBox.Focus();
+        }
+
+        e.Handled = true;
+    }
+
     /// <summary>由 <see cref="App.OnStartup"/> 在创建服务后注入 ViewModel。</summary>
     internal void Initialize(MainViewModel viewModel)
     {

@@ -33,7 +33,8 @@ internal static class AppInitializer
     public static bool Initialize()
     {
         var log = LogService.Instance;
-        bool isFirstRun = false;
+        int initializedProfiles = 0;
+        int newProfiles = 0;
         try
         {
             var dllPath = GetCurrentDllPath();
@@ -53,8 +54,9 @@ internal static class AppInitializer
             foreach (var profile in profiles)
             {
                 var appPath = $@"{AutoCadBasePath}\{profile}\Applications\{AppName}";
+                initializedProfiles++;
                 if (InitializeProfile(appPath, dllPath))
-                    isFirstRun = true;
+                    newProfiles++;
             }
 
             #if AFR_EXTERNAL_REGISTRY
@@ -71,7 +73,8 @@ internal static class AppInitializer
         {
             log.Error("初始化失败", ex);
         }
-        return isFirstRun;
+
+        return initializedProfiles > 0 && newProfiles == initializedProfiles;
     }
 
     /// <summary>

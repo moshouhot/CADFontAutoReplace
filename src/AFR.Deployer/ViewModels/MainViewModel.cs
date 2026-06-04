@@ -457,7 +457,12 @@ internal sealed partial class MainViewModel : ObservableObject
     }
 
     private static bool IsSameEntry(CadInstallation r, CadEntryViewModel e)
-        => r.Descriptor.AppName == e.Installation.Descriptor.AppName
+        => string.Equals(r.Descriptor.Brand,
+                         e.Installation.Descriptor.Brand,
+                         StringComparison.OrdinalIgnoreCase)
+        && string.Equals(r.Descriptor.Version,
+                         e.Installation.Descriptor.Version,
+                         StringComparison.OrdinalIgnoreCase)
         && string.Equals(r.Descriptor.RegistryBasePath,
                          e.Installation.Descriptor.RegistryBasePath,
                          StringComparison.OrdinalIgnoreCase);
@@ -552,6 +557,19 @@ internal sealed partial class MainViewModel : ObservableObject
         {
             await _dialog.ShowWarningAsync($"保存字体配置失败：{ex.Message}", "AFR 部署工具 — 字体配置");
         }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOperate))]
+    private void SelectAllCadEntries()
+    {
+        foreach (var entry in CadEntries.Where(e => e.IsCadInstalled))
+            entry.IsSelected = true;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOperate))]
+    private void UnselectAllCadEntries()
+    {
+        ClearSelection();
     }
 
     // ── 安装 ──
@@ -734,7 +752,7 @@ internal sealed partial class MainViewModel : ObservableObject
 
             foreach (var entry in selected)
             {
-                var key = entry.Installation.Descriptor.AppName;
+                var key = entry.Installation.Descriptor.Version;
                 var fresh = freshResults.GetValueOrDefault(key, entry.Installation);
 
                 if (!PluginUninstaller.TryUninstall(fresh, out var warn))
