@@ -170,6 +170,7 @@ MText 内联运行时映射规则：
 - 通过 `AFR.HostIntegration` 共用默认 SHX 字体兜底与 `FixedProfile.aws` 弹窗抑制基础逻辑；部署器安装时优先从绿色目录 `Fonts\` 复制当前配置的 SHX 字体到 CAD `Fonts` 目录。
 - 插件 DLL 从 `artifacts/bin/AFR-ACAD*/release/` 复制到 `bin/AFR-Deployer/`；新增 AutoCAD 版本时优先让发布脚本生成标准构建输出，不手工拼接绿色目录。
 - 部署器 GUI 负责保存 `AFR.config.json` 中的 `mainFont` / `bigFont` / `trueTypeFont`；SHX 下拉列表来自同目录 `Fonts\*.shx`，用户可自行放入字体后刷新。
+- 部署器带参数运行时进入 CLI 模式并输出 JSON；无参数运行仍打开 GUI。CLI 与 GUI 复用同一套扫描、安装、卸载和字体复制服务。
 
 发布资产统一由 `tools/Publish-ReleaseAssets.ps1` 生成。
 
@@ -215,6 +216,6 @@ artifacts/ReleaseAssets/AFR-Deployer-Green_vX.Y.Z.zip
 - 发布相关变更应验证 `tools/Publish-ReleaseAssets.ps1`。
 - Hook 变更应验证 `LdFileHook`、`ShpLoadHook` 的真实 `HookHandler` 命中、redirect 计数和样式表写回顺序；`ShpLoadHook` 版本扩展还要复核导出名、实际 RVA 诊断日志、入口 prefix 和 2027 `_N0022` ABI 分支。RVA 不匹配只作为 build 指纹漂移提示，不能替代 prefix / prologue 安装硬闸。
 - 命令变更应验证 `CommandNames.cs`、`CommandMethod`、`CommandClass` 和 Debug/Release 暴露范围。
-- 部署器变更应验证 UAC、注册表扫描、安装/卸载、内置版本描述符、同目录插件 DLL 解析、`AFR.config.json` 保存和绿色目录 `Fonts\` 到 CAD `Fonts` 的复制路径。
+- 部署器变更应验证 UAC、注册表扫描、安装/卸载、内置版本描述符、同目录插件 DLL 解析、CLI JSON 输出、`AFR.config.json` 保存和绿色目录 `Fonts\` 到 CAD `Fonts` 的复制路径。
 - 文档变更至少运行 `git diff --check`，确保没有空白错误。
 - 新增文档必须能从 README 或开发者指南找到入口，除非它明确是本地临时调查文件。

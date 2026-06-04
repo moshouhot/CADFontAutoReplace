@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Media;
 using AFR.Deployer.Infrastructure;
+using AFR.Deployer.Services;
 using AFR.Deployer.ViewModels;
 using AFR.Deployer.Views;
 using Wpf.Ui.Appearance;
@@ -50,6 +51,15 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (e.Args.Length > 0)
+        {
+            ConsoleBridge.AttachParentConsole();
+            Shutdown(DeployerCli.Run(e.Args));
+            return;
+        }
+
+        ConsoleBridge.DetachConsole();
+
         base.OnStartup(e);
 
         var window       = new MainWindow();

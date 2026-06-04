@@ -81,6 +81,15 @@ dotnet build CADFontAutoReplace.slnx
 
 适合验证发布/安装链路。部署器会扫描本机 AutoCAD、写注册表、复制插件 DLL、保存 `AFR.config.json`、从绿色目录 `Fonts\` 复制配置的 SHX 字体并处理 `FixedProfile.aws`。部署器相关改动必须检查 UAC、注册表、安装和卸载，不要只看 UI 能打开。
 
+部署器带参数运行时进入 CLI 模式，不打开 GUI；常用调试命令：
+
+```powershell
+./bin/AFR-Deployer/AFR-Deployer.exe doctor --json
+./bin/AFR-Deployer/AFR-Deployer.exe detect --json
+./bin/AFR-Deployer/AFR-Deployer.exe fonts list --json
+./bin/AFR-Deployer/AFR-Deployer.exe config get --json
+```
+
 加载后先确认实际 DLL 路径。最常见的新手问题是源码改了，但 CAD 仍在运行旧部署目录里的 DLL。
 
 ## 5. 第一次看诊断

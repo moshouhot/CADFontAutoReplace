@@ -46,6 +46,22 @@
 >
 > 卸载同样在部署工具中完成：勾选已安装的项目点击“卸载”，工具会同步还原注册表与 `FixedProfile.aws` 中由本插件写入的节点。
 
+### 部署器 CLI
+
+`AFR-Deployer.exe` 带参数运行时进入 CLI 模式，不打开 GUI，并向 stdout 输出 JSON，方便脚本或 AI 调试：
+
+```powershell
+.\AFR-Deployer.exe detect --json
+.\AFR-Deployer.exe doctor --json
+.\AFR-Deployer.exe fonts list --json
+.\AFR-Deployer.exe config get --json
+.\AFR-Deployer.exe config set --main ming.shx --big tssdchn.shx --ttf 宋体 --json
+.\AFR-Deployer.exe install --versions 2014,2024 --json
+.\AFR-Deployer.exe uninstall --versions 2014 --json
+```
+
+无参数运行仍打开图形界面。安装 / 卸载 CLI 与 GUI 使用同一套注册表、字体复制和 `FixedProfile.aws` 处理逻辑。
+
 ### 单 DLL 手动安装
 
 部署工具是推荐方式；如果只需要单 DLL 场景（例如维护、测试、受限环境），可以手动 `NETLOAD`：
