@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Media;
+using AFR.Services;
 
 namespace AFR.Deployer.Services;
 
@@ -104,6 +105,34 @@ internal static class DeployerFontConfigService
         }
     }
 
+    internal static IReadOnlyList<string> ScanMainShxFonts()
+    {
+        try
+        {
+            var fonts = ScanShxFontsByKind(isBigFont: false);
+            AddIfMissing(fonts, DefaultMainFont);
+            return fonts;
+        }
+        catch
+        {
+            return [DefaultMainFont];
+        }
+    }
+
+    internal static IReadOnlyList<string> ScanBigShxFonts()
+    {
+        try
+        {
+            var fonts = ScanShxFontsByKind(isBigFont: true);
+            AddIfMissing(fonts, DefaultBigFont);
+            return fonts;
+        }
+        catch
+        {
+            return [DefaultBigFont];
+        }
+    }
+
     internal static IReadOnlyList<string> ScanTrueTypeFonts()
     {
         try
@@ -144,6 +173,21 @@ internal static class DeployerFontConfigService
 
     private static DeployerFontConfig Defaults()
         => new(DefaultMainFont, DefaultBigFont, DefaultTrueTypeFont, true);
+
+    private static List<string> ScanShxFontsByKind(bool isBigFont)
+    {
+        if (!Directory.Exists(FontsDirectory))
+            return [];
+
+        return Directory.EnumerateFiles(FontsDirectory, "*.shx", SearchOption.TopDirectoryOnly)
+            .Where(path => ShxFontAnalyzer.IsBigFont(path) == isBigFont)
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
 
     private static DeployerFontConfig Normalize(DeployerFontConfig config)
         => new(

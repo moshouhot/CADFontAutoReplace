@@ -149,6 +149,26 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- 字体文件名需要完整可读；使用等宽回退字体避免 .shx 中的点号被中文 UI 字体压窄。 -->
+        <Style x:Key="FontComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Microsoft YaHei UI" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="ToolTip" Value="{Binding}" />
+        </Style>
+
+        <Style x:Key="FontComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinWidth" Value="205" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Microsoft YaHei UI" />
+            <Setter Property="Padding" Value="8,0,6,0" />
+            <Setter Property="MaxDropDownHeight" Value="260" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource FontComboBoxItemStyle}" />
+            <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=Text}" />
+        </Style>
     </ui:FluentWindow.Resources>
 
     <Grid>
@@ -499,9 +519,9 @@
 
                     <Grid Grid.Row="2" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="1.15*" MinWidth="205" />
+                            <ColumnDefinition Width="1.15*" MinWidth="205" />
+                            <ColumnDefinition Width="1*" MinWidth="205" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
@@ -511,10 +531,10 @@
                                        FontSize="11"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <ComboBox ItemsSource="{Binding AvailableShxFonts}"
+                            <ComboBox ItemsSource="{Binding AvailableMainShxFonts}"
                                       Text="{Binding SelectedMainFont, UpdateSourceTrigger=PropertyChanged}"
                                       IsEditable="True"
-                                      Height="30"
+                                      Style="{StaticResource FontComboBoxStyle}"
                                       Margin="0,4,0,0" />
                         </StackPanel>
 
@@ -523,10 +543,10 @@
                                        FontSize="11"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <ComboBox ItemsSource="{Binding AvailableShxFonts}"
+                            <ComboBox ItemsSource="{Binding AvailableBigShxFonts}"
                                       Text="{Binding SelectedBigFont, UpdateSourceTrigger=PropertyChanged}"
                                       IsEditable="True"
-                                      Height="30"
+                                      Style="{StaticResource FontComboBoxStyle}"
                                       Margin="0,4,0,0" />
                         </StackPanel>
 
@@ -538,7 +558,7 @@
                             <ComboBox ItemsSource="{Binding AvailableTrueTypeFonts}"
                                       Text="{Binding SelectedTrueTypeFont, UpdateSourceTrigger=PropertyChanged}"
                                       IsEditable="True"
-                                      Height="30"
+                                      Style="{StaticResource FontComboBoxStyle}"
                                       Margin="0,4,0,0" />
                         </StackPanel>
 

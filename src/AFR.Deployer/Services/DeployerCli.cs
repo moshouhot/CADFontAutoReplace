@@ -112,6 +112,8 @@ internal static class DeployerCli
                 ok = true,
                 fontsDirectory = DeployerFontConfigService.FontsDirectory,
                 shx = DeployerFontConfigService.ScanShxFonts(),
+                mainShx = DeployerFontConfigService.ScanMainShxFonts(),
+                bigShx = DeployerFontConfigService.ScanBigShxFonts(),
                 trueType = DeployerFontConfigService.ScanTrueTypeFonts(),
             });
         }

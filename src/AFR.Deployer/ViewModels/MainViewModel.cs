@@ -196,8 +196,11 @@ internal sealed partial class MainViewModel : ObservableObject
     /// <summary>DataGrid 数据源。</summary>
     public ObservableCollection<CadEntryViewModel> CadEntries { get; } = [];
 
-    /// <summary>绿色目录 Fonts 下可选的 SHX 字体。</summary>
-    public ObservableCollection<string> AvailableShxFonts { get; } = [];
+    /// <summary>绿色目录 Fonts 下可选的 SHX 主字体。</summary>
+    public ObservableCollection<string> AvailableMainShxFonts { get; } = [];
+
+    /// <summary>绿色目录 Fonts 下可选的 SHX 大字体。</summary>
+    public ObservableCollection<string> AvailableBigShxFonts { get; } = [];
 
     /// <summary>系统可选 TrueType 字体。</summary>
     public ObservableCollection<string> AvailableTrueTypeFonts { get; } = [];
@@ -267,7 +270,12 @@ internal sealed partial class MainViewModel : ObservableObject
 
     private void RefreshFontOptions()
     {
-        ReplaceItems(AvailableShxFonts, DeployerFontConfigService.ScanShxFonts());
+        ReplaceItems(AvailableMainShxFonts, WithCurrentValue(
+            DeployerFontConfigService.ScanMainShxFonts(),
+            SelectedMainFont));
+        ReplaceItems(AvailableBigShxFonts, WithCurrentValue(
+            DeployerFontConfigService.ScanBigShxFonts(),
+            SelectedBigFont));
         ReplaceItems(AvailableTrueTypeFonts, DeployerFontConfigService.ScanTrueTypeFonts());
     }
 
@@ -283,6 +291,18 @@ internal sealed partial class MainViewModel : ObservableObject
         target.Clear();
         foreach (var value in values)
             target.Add(value);
+    }
+
+    private static IReadOnlyList<string> WithCurrentValue(IReadOnlyList<string> values, string currentValue)
+    {
+        string current = Path.GetFileName((currentValue ?? string.Empty).Trim());
+        if (string.IsNullOrWhiteSpace(current)
+            || values.Any(value => string.Equals(value, current, StringComparison.OrdinalIgnoreCase)))
+        {
+            return values;
+        }
+
+        return [current, .. values];
     }
 
     /// <summary>取 RegistryBasePath 的品牌根，如 R25.0 → AutoCAD。</summary>

@@ -59,6 +59,11 @@
   <!-- 与 AFR.AutoCAD 共用字体释放代码；绿色版字体文件由发布脚本放入 Fonts\。 -->
   <Import Project="..\AFR.HostIntegration\AFR.HostIntegration.projitems" Label="Shared" />
 
+  <!-- 复用 CAD 插件侧的 SHX 文件头解析器，避免部署器按文件名猜测主字体/大字体。 -->
+  <ItemGroup>
+    <Compile Include="..\AFR.Core\Services\ShxFontAnalyzer.cs" Link="Services\ShxFontAnalyzer.cs" />
+  </ItemGroup>
+
   <!-- MVVM -->
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
