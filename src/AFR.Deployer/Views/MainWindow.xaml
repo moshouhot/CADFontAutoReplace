@@ -153,9 +153,10 @@
         <!-- 字体文件名需要完整可读；使用等宽回退字体避免 .shx 中的点号被中文 UI 字体压窄。 -->
         <Style x:Key="FontComboBoxItemStyle" TargetType="ComboBoxItem">
             <Setter Property="MinHeight" Value="30" />
-            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Padding" Value="10,0" />
             <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Microsoft YaHei UI" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="ToolTip" Value="{Binding}" />
         </Style>
 
@@ -164,7 +165,9 @@
             <Setter Property="MinWidth" Value="205" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Microsoft YaHei UI" />
-            <Setter Property="Padding" Value="8,0,6,0" />
+            <Setter Property="Padding" Value="10,0,6,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="MaxDropDownHeight" Value="260" />
             <Setter Property="ItemContainerStyle" Value="{StaticResource FontComboBoxItemStyle}" />
             <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=Text}" />
