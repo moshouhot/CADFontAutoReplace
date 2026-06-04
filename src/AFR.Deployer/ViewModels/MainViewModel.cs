@@ -573,7 +573,7 @@ internal sealed partial class MainViewModel : ObservableObject
         try
         {
             freshResults = CadRegistryScanner.Scan()
-                .ToDictionary(r => r.Descriptor.AppName);
+                .ToDictionary(r => r.Descriptor.Version);
             DebugLogService.Info($"Install registry rescan count={freshResults.Count}");
         }
         catch (Exception ex)
@@ -612,7 +612,7 @@ internal sealed partial class MainViewModel : ObservableObject
 
                 foreach (var entry in selected)
                 {
-                    var key = entry.Installation.Descriptor.AppName;
+                    var key = entry.Installation.Descriptor.Version;
                     var fresh = freshResults.GetValueOrDefault(key, entry.Installation);
                     DebugLogService.Info($"Install version begin {fresh.Descriptor.DisplayName}; plugin={fresh.Descriptor.PluginFileName}; profiles={fresh.ProfileSubKeys.Count}; installedDll={fresh.InstalledDllPath ?? "<none>"}");
 
@@ -720,7 +720,7 @@ internal sealed partial class MainViewModel : ObservableObject
         if (!confirmed) return;
 
         var freshResults = CadRegistryScanner.Scan()
-            .ToDictionary(r => r.Descriptor.AppName);
+            .ToDictionary(r => r.Descriptor.Version);
 
         IsBusy     = true;
         StatusText = "正在卸载……";
