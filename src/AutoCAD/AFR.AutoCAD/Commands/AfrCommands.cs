@@ -318,6 +318,41 @@ public class AfrCommands
     }
 
     /// <summary>
+    /// AFRSELFTEST：无界面自检命令，用于 accoreconsole/AI 自动验证 DLL 已加载并完成平台初始化。
+    /// </summary>
+    [CommandMethod(AFR.Constants.CommandNames.SelfTest)]
+    public void AfrSelfTestCommand()
+    {
+        var editor = AcadApp.DocumentManager.MdiActiveDocument?.Editor;
+        if (editor == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var platform = PlatformManager.Platform;
+            var config = ConfigService.Instance;
+            string hookInstalled = platform.SupportsNativeFontHooks
+                ? PlatformManager.FontHook.IsInstalled.ToString()
+                : "unsupported";
+
+            editor.WriteMessage(
+                "\nAFRSELFTEST OK" +
+                $" Version={PluginVersionService.GetDisplayVersionWithBuildMarker()}" +
+                $" Platform=\"{platform.DisplayName}\"" +
+                $" NativeHooks={platform.SupportsNativeFontHooks}" +
+                $" HookInstalled={hookInstalled}" +
+                $" ConfigPath=\"{config.ConfigPath}\"" +
+                "\n");
+        }
+        catch (System.Exception ex)
+        {
+            editor.WriteMessage($"\nAFRSELFTEST FAIL {ex.GetType().Name}: {ex.Message}\n");
+        }
+    }
+
+    /// <summary>
     /// 用新配置覆盖已替换过的样式。
     /// <para>
     /// 复用原始缺失结果，避免旧替换字体已可用后被误判为“不缺失”。

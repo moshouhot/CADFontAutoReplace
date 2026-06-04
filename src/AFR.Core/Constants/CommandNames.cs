@@ -21,6 +21,8 @@ internal static class CommandNames
     public const string Main = "AFR";
     /// <summary>查看插件日志。</summary>
     public const string Log = "AFRLOG";
+    /// <summary>无界面自检命令：输出当前插件、平台和配置状态，供 Core Console/AI 调试验证。</summary>
+    public const string SelfTest = "AFRSELFTEST";
     // ── 隐藏维护命令（不通过 CommandMethod 注册，不进入 CAD 补全/建议列表）────
     /// <summary>卸载插件并清理注册表。仅完整输入时由 UnknownCommand 路由触发。</summary>
     public const string Unload = "AFRUNLOAD";

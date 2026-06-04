@@ -231,7 +231,7 @@ internal sealed class LogService : ILogService
             if (showHeader)
             {
                 // AFRUNLOAD 是隐藏维护入口：日志头可展示，但不通过 CommandMethod 注册进 CAD 补全体系。
-                const string commandsLine = "\n命令: AFR(配置) AFRLOG(日志) AFRUNLOAD(卸载命令)";
+                const string commandsLine = "\n命令: AFR(配置) AFRLOG(日志) AFRSELFTEST(自检) AFRUNLOAD(卸载命令)";
                 editor.WriteMessage(
                     "\n==========================================================================" +
                     $"\nAFR 缺失字体自动替换 v{PluginVersionService.GetDisplayVersionWithBuildMarker()}" +
