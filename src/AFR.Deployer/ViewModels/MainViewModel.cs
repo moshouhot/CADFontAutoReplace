@@ -559,23 +559,39 @@ internal sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanOperate))]
     private async Task InstallAsync()
     {
+        DebugLogService.Info("Install command started");
         var selected = CadEntries.Where(e => e.IsCadInstalled && e.IsSelected).ToList();
+        DebugLogService.Info($"Install selected count={selected.Count}; versions={string.Join(",", selected.Select(e => e.Installation.Descriptor.Version))}");
         if (selected.Count == 0)
         {
+            DebugLogService.Info("Install aborted: no selected CAD versions");
             await _dialog.ShowInfoAsync("请先在列表中勾选要安装的 CAD 版本。", "AFR 部署工具");
             return;
         }
 
-        var freshResults = CadRegistryScanner.Scan()
-            .ToDictionary(r => r.Descriptor.AppName);
+        Dictionary<string, CadInstallation> freshResults;
+        try
+        {
+            freshResults = CadRegistryScanner.Scan()
+                .ToDictionary(r => r.Descriptor.AppName);
+            DebugLogService.Info($"Install registry rescan count={freshResults.Count}");
+        }
+        catch (Exception ex)
+        {
+            DebugLogService.Error("Install registry rescan failed", ex);
+            await _dialog.ShowWarningAsync($"重新扫描 CAD 注册表失败：{ex.Message}", "AFR 部署工具 — 安装错误");
+            return;
+        }
 
         try
         {
+            DebugLogService.Info($"Install saving font config main={SelectedMainFont}, big={SelectedBigFont}, ttf={SelectedTrueTypeFont}");
             DeployerFontConfigService.Save(CurrentFontConfig());
             LoadFontConfig();
         }
         catch (Exception ex)
         {
+            DebugLogService.Error("Install font config save failed", ex);
             await _dialog.ShowWarningAsync($"保存字体配置失败：{ex.Message}", "AFR 部署工具 — 字体配置");
             return;
         }
@@ -587,47 +603,79 @@ internal sealed partial class MainViewModel : ObservableObject
         var warnings  = new List<string>();
         var successes = 0;
 
-        await Task.Run(() =>
+        try
         {
-            // 收集安装成功的 CAD 版本，稍后统一处理 FixedProfile.aws。
-            var patchedDescriptors = new HashSet<CadDescriptor>();
-
-            foreach (var entry in selected)
+            await Task.Run(() =>
             {
-                var key = entry.Installation.Descriptor.AppName;
-                var fresh = freshResults.GetValueOrDefault(key, entry.Installation);
+                // 收集安装成功的 CAD 版本，稍后统一处理 FixedProfile.aws。
+                var patchedDescriptors = new HashSet<CadDescriptor>();
 
-                if (!PluginDeployer.TryInstall(fresh, out var err, out var installWarning))
-                    errors.Add($"{fresh.Descriptor.DisplayName}：{err}");
-                else
+                foreach (var entry in selected)
                 {
-                    successes++;
-                    patchedDescriptors.Add(fresh.Descriptor);
-                    if (!string.IsNullOrWhiteSpace(installWarning))
-                        warnings.Add($"{fresh.Descriptor.DisplayName}：{installWarning}");
+                    var key = entry.Installation.Descriptor.AppName;
+                    var fresh = freshResults.GetValueOrDefault(key, entry.Installation);
+                    DebugLogService.Info($"Install version begin {fresh.Descriptor.DisplayName}; plugin={fresh.Descriptor.PluginFileName}; profiles={fresh.ProfileSubKeys.Count}; installedDll={fresh.InstalledDllPath ?? "<none>"}");
 
-                    // 复制配置的 SHX 字体到当前实例对应的 <AcadLocation>\Fonts。
-                    // 失败仅记录警告，不阻断安装主流程。
+                    if (!PluginDeployer.TryInstall(fresh, out var err, out var installWarning))
+                    {
+                        DebugLogService.Info($"Install version failed {fresh.Descriptor.DisplayName}: {err}");
+                        errors.Add($"{fresh.Descriptor.DisplayName}：{err}");
+                    }
+                    else
+                    {
+                        successes++;
+                        patchedDescriptors.Add(fresh.Descriptor);
+                        DebugLogService.Info($"Install version success {fresh.Descriptor.DisplayName}");
+                        if (!string.IsNullOrWhiteSpace(installWarning))
+                        {
+                            DebugLogService.Info($"Install version warning {fresh.Descriptor.DisplayName}: {installWarning}");
+                            warnings.Add($"{fresh.Descriptor.DisplayName}：{installWarning}");
+                        }
+
+                        // 复制配置的 SHX 字体到当前实例对应的 <AcadLocation>\Fonts。
+                        // 失败仅记录警告，不阻断安装主流程。
+                        try
+                        {
+                            bool fontPatched = EmbeddedFontPatcher.Apply(fresh);
+                            DebugLogService.Info($"Install font patch {fresh.Descriptor.DisplayName}: {fontPatched}");
+                            if (!fontPatched)
+                                warnings.Add($"{fresh.Descriptor.DisplayName}：配置的 SHX 字体复制失败，请检查绿色目录 Fonts 中是否存在对应字体文件");
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugLogService.Error($"Install font patch exception {fresh.Descriptor.DisplayName}", ex);
+                            warnings.Add($"{fresh.Descriptor.DisplayName}：配置的 SHX 字体复制异常：{ex.Message}");
+                        }
+                    }
+                }
+
+                // 抑制“缺少 SHX 文件”对话框：在全部写入完成后统一处理 FixedProfile.aws。
+                foreach (var desc in patchedDescriptors)
+                {
                     try
                     {
-                        if (!EmbeddedFontPatcher.Apply(fresh))
-                            warnings.Add($"{fresh.Descriptor.DisplayName}：配置的 SHX 字体复制失败，请检查绿色目录 Fonts 中是否存在对应字体文件");
+                        AwsHideableDialogPatcher.Apply(desc);
+                        DebugLogService.Info($"Install AWS patch success {desc.DisplayName}");
                     }
-                    catch { /* 字体释放失败不影响安装主流程 */ }
+                    catch (Exception ex)
+                    {
+                        DebugLogService.Error($"Install AWS patch exception {desc.DisplayName}", ex);
+                    }
                 }
-            }
-
-            // 抑制“缺少 SHX 文件”对话框：在全部写入完成后统一处理 FixedProfile.aws。
-            foreach (var desc in patchedDescriptors)
-            {
-                try { AwsHideableDialogPatcher.Apply(desc); }
-                catch { /* 单个版本失败不影响其它版本；安装本身已成功 */ }
-            }
-        });
-
-        IsBusy = false;
-        Refresh();
-        ClearSelection();
+            });
+        }
+        catch (Exception ex)
+        {
+            DebugLogService.Error("Install command failed", ex);
+            errors.Add($"安装流程异常：{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            Refresh();
+            ClearSelection();
+            DebugLogService.Info($"Install command finished successes={successes}; errors={errors.Count}; warnings={warnings.Count}");
+        }
 
         if (errors.Count > 0)
         {

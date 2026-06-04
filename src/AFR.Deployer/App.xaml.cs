@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Media;
+using System.Threading.Tasks;
 using AFR.Deployer.Infrastructure;
 using AFR.Deployer.Services;
 using AFR.Deployer.ViewModels;
@@ -51,10 +52,15 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        AttachDebugHandlers();
+        DebugLogService.Info($"Startup args={e.Args.Length} baseDir={AppContext.BaseDirectory}");
+
         if (e.Args.Length > 0)
         {
             ConsoleBridge.AttachParentConsole();
-            Shutdown(DeployerCli.Run(e.Args));
+            int exitCode = DeployerCli.Run(e.Args);
+            DebugLogService.Info($"CLI shutdown exitCode={exitCode}");
+            Shutdown(exitCode);
             return;
         }
 
@@ -72,5 +78,26 @@ public partial class App : Application
         ApplicationThemeManager.Apply(window);
 
         window.Show();
+        DebugLogService.Info("Main window shown");
+    }
+
+    private void AttachDebugHandlers()
+    {
+        DispatcherUnhandledException += (_, args) =>
+        {
+            DebugLogService.Error("DispatcherUnhandledException", args.Exception);
+        };
+
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            DebugLogService.Error("AppDomain.UnhandledException", args.ExceptionObject as Exception);
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            DebugLogService.Error("TaskScheduler.UnobservedTaskException", args.Exception);
+        };
+
+        Exit += (_, args) => DebugLogService.Info($"Application exit code={args.ApplicationExitCode}");
     }
 }
