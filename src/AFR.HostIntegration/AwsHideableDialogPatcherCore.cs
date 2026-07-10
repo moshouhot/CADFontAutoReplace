@@ -7,6 +7,13 @@ using System.Xml.Linq;
 
 namespace AFR.HostIntegration;
 
+public enum AwsDialogSuppressionState
+{
+    Correct = 0,
+    Missing = 1,
+    Incorrect = 2,
+}
+
 /// <summary>
 /// AutoCAD 2018+ "缺少 SHX 文件"对话框（id=Acad.UnresolvedFontFiles）抑制器的共享核心实现。
 /// <para>
@@ -85,6 +92,50 @@ internal static class AwsHideableDialogPatcherCore
     }
 
     /// <summary>
+    /// 安装 / 更新时专用：只覆盖 <c>Acad.UnresolvedFontFiles</c> 对应的 HideableDialog 节点。
+    /// AutoCAD 运行中、文件不存在或写入异常一律视为本次跳过（不抛出）。
+    /// </summary>
+    /// <remarks>
+    /// 与 <see cref="Apply"/> 不同，本方法会接管用户已有的同 id 节点（例如 result=1001），
+    /// 但不会改动 <c>FixedProfile.aws</c> 中其它节点。调用方必须只在首次安装或更新时调用，
+    /// 以便用户后续手动修改不会被同版本重复安装覆盖。
+    /// </remarks>
+    /// <returns>实际写入或刷新的文件数量。</returns>
+    public static int ApplyInstallOrUpdateOverride(
+        string brand,
+        string version,
+        string registryBasePath,
+        System.Action<string, string>? log = null)
+    {
+        if (IsAutoCadRunning())
+        {
+            log?.Invoke("AwsPatcher", "ApplyInstallOrUpdateOverride 跳过：检测到 acad.exe 运行中。");
+            return 0;
+        }
+
+        var paths = EnumerateTargetAwsFiles(brand, version, registryBasePath).ToArray();
+        if (paths.Length == 0)
+        {
+            log?.Invoke("AwsPatcher", "ApplyInstallOrUpdateOverride 跳过：未找到任何 FixedProfile.aws，等待 CAD 首次启动生成。");
+            return 0;
+        }
+
+        int count = 0;
+        foreach (var path in paths)
+        {
+            try
+            {
+                if (WriteInstallOrUpdateOverrideNode(path)) count++;
+            }
+            catch (System.Exception ex)
+            {
+                log?.Invoke("AwsPatcher", $"安装/更新覆盖 {path} 失败：{ex.Message}");
+            }
+        }
+        return count;
+    }
+
+    /// <summary>
     /// 删除指定 CAD 版本对应 <c>FixedProfile.aws</c> 中所有带 AFR 所有权标记的抑制节点。
     /// 用户手动设置（无标记）的同名节点不会被删除。
     /// </summary>
@@ -114,7 +165,7 @@ internal static class AwsHideableDialogPatcherCore
 
     /// <summary>枚举本 CAD 版本对应的所有 <c>FixedProfile.aws</c> 候选路径（诊断用）。</summary>
     public static string[] ListTargetAwsFiles(string brand, string version, string registryBasePath)
-        => EnumerateTargetAwsFiles(brand, version, registryBasePath).ToArray();
+        => [.. EnumerateTargetAwsFiles(brand, version, registryBasePath)];
 
     /// <summary>定位活动 <c>FixedProfile.aws</c>：候选中最近修改的一个；无候选返回 null。</summary>
     public static string? LocateActiveAwsPath(string brand, string version, string registryBasePath)
@@ -133,6 +184,52 @@ internal static class AwsHideableDialogPatcherCore
                       .FirstOrDefault(e => e.Name.LocalName == "HideableDialog"
                                         && (string?)e.Attribute("id") == DialogId);
         return node?.ToString(SaveOptions.DisableFormatting) ?? string.Empty;
+    }
+
+    /// <summary>判断指定 .aws 中的缺失 SHX 弹窗节点是否已经是 AFR 标准抑制节点。</summary>
+    public static bool IsDialogNodeUpToDate(string awsPath)
+    {
+        if (!File.Exists(awsPath)) return false;
+        var doc = XDocument.Load(awsPath);
+        var profile = doc.Root;
+        if (profile is null || profile.Name.LocalName != "Profile") return false;
+        var ns = profile.GetDefaultNamespace();
+
+        var nodes = profile.Descendants()
+                           .Where(e => e.Name.LocalName == "HideableDialog"
+                                    && (string?)e.Attribute("id") == DialogId)
+                           .ToList();
+        return nodes.Count == 1 && IsOwnedNodeUpToDate(nodes[0], ns);
+    }
+
+    /// <summary>
+    /// 只读判断指定 CAD 版本是否已经正确忽略缺少 SHX 对话框。
+    /// 用户自设节点只要唯一且 <c>result="1002"</c> 即视为正确，不要求 AFR 所有权标记。
+    /// </summary>
+    public static AwsDialogSuppressionState GetSuppressionState(
+        string brand,
+        string version,
+        string registryBasePath,
+        System.Action<string, string>? log = null)
+    {
+        var paths = EnumerateTargetAwsFiles(brand, version, registryBasePath).ToArray();
+        if (paths.Length == 0)
+        {
+            log?.Invoke("AwsPatcher", "GetSuppressionState：未找到任何 FixedProfile.aws。");
+            return AwsDialogSuppressionState.Missing;
+        }
+
+        var aggregate = AwsDialogSuppressionState.Correct;
+        foreach (var path in paths)
+        {
+            var state = GetFileSuppressionState(path, log);
+            if (state == AwsDialogSuppressionState.Incorrect)
+                return AwsDialogSuppressionState.Incorrect;
+            if (state == AwsDialogSuppressionState.Missing)
+                aggregate = AwsDialogSuppressionState.Missing;
+        }
+
+        return aggregate;
     }
 
     /// <summary>判断 acad.exe 是否在运行。任何异常一律视为"在运行"，从安全侧拒绝写入。</summary>
@@ -213,6 +310,71 @@ internal static class AwsHideableDialogPatcherCore
         return true;
     }
 
+    /// <summary>
+    /// 安装 / 更新时只替换缺失 SHX 弹窗对应节点；其它 .aws 内容保持不变。
+    /// </summary>
+    private static bool WriteInstallOrUpdateOverrideNode(string path)
+    {
+        if (!File.Exists(path)) return false;
+
+        var doc = XDocument.Load(path, LoadOptions.PreserveWhitespace);
+        var profile = doc.Root;
+        if (profile is null || profile.Name.LocalName != "Profile") return false;
+        var ns = profile.GetDefaultNamespace();
+
+        var storageRoot = profile.Element(ns + "StorageRoot")  ?? AddChild(profile,     ns + "StorageRoot");
+        var acApData    = storageRoot.Element(ns + "AcApData") ?? AddChild(storageRoot, ns + "AcApData");
+        var hideables   = acApData.Element(ns + "HideableDialogs") ?? AddChild(acApData, ns + "HideableDialogs");
+
+        var existingNodes = hideables.Elements(ns + "HideableDialog")
+                                     .Where(e => (string?)e.Attribute("id") == DialogId)
+                                     .ToList();
+
+        if (existingNodes.Count == 1 && IsUserSuppressionCorrect(existingNodes[0]))
+            return false;
+
+        if (existingNodes.Count == 1 && IsOwnedNodeUpToDate(existingNodes[0], ns))
+            return false;
+
+        foreach (var existing in existingNodes)
+            existing.Remove();
+
+        hideables.Add(BuildOwnedNode(ns));
+        SaveAtomically(doc, path);
+        return true;
+    }
+
+    private static AwsDialogSuppressionState GetFileSuppressionState(
+        string path,
+        System.Action<string, string>? log)
+    {
+        try
+        {
+            if (!File.Exists(path)) return AwsDialogSuppressionState.Missing;
+
+            var doc = XDocument.Load(path, LoadOptions.PreserveWhitespace);
+            var nodes = doc.Descendants()
+                           .Where(e => e.Name.LocalName == "HideableDialog"
+                                    && (string?)e.Attribute("id") == DialogId)
+                           .ToList();
+
+            if (nodes.Count == 0) return AwsDialogSuppressionState.Missing;
+            if (nodes.Count != 1) return AwsDialogSuppressionState.Incorrect;
+
+            return IsUserSuppressionCorrect(nodes[0])
+                ? AwsDialogSuppressionState.Correct
+                : AwsDialogSuppressionState.Incorrect;
+        }
+        catch (System.Exception ex)
+        {
+            log?.Invoke("AwsPatcher", $"读取 {path} 的 SHX 弹窗抑制状态失败：{ex.Message}");
+            return AwsDialogSuppressionState.Incorrect;
+        }
+    }
+
+    private static bool IsUserSuppressionCorrect(XElement existing)
+        => (string?)existing.Attribute("result") == DialogResult;
+
     /// <summary>构造带 AFR 标记的目标节点（结构与 AutoCAD 自写一致）。</summary>
     private static XElement BuildOwnedNode(XNamespace ns)
     {
@@ -234,6 +396,7 @@ internal static class AwsHideableDialogPatcherCore
     /// <summary>判断已存在的自有节点结构是否已经与当前目标完全一致（用于跳过冗余写入）。</summary>
     private static bool IsOwnedNodeUpToDate(XElement existing, XNamespace ns)
     {
+        if ((string?)existing.Attribute(OwnershipAttr) != OwnershipToken) return false;
         if ((string?)existing.Attribute("title")       != DialogTitle)  return false;
         if ((string?)existing.Attribute("category")    != DialogTitle)  return false;
         if ((string?)existing.Attribute("application") != "")           return false;

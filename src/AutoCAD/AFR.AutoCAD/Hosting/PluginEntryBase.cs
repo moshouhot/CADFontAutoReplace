@@ -5,6 +5,7 @@ using System.Reflection;
 using AFR.Abstractions;
 using AFR.Commands;
 using AFR.Constants;
+using AFR.HostIntegration;
 using AFR.Platform;
 using AFR.Services;
 using AcadApp = Autodesk.AutoCAD.ApplicationServices.Core.Application;
@@ -138,13 +139,24 @@ public abstract class PluginEntryBase : IExtensionApplication
 
             // 初始化自动加载注册表项；首次安装还会部署内嵌字体和默认配置。
             DiagnosticLogger.Start("PluginEntry", "AppInitializer", "开始执行注册表和默认字体初始化");
-            bool isFirstRun = AppInitializer.Initialize();
+            var initResult = AppInitializer.Initialize();
             DiagnosticLogger.Ok(
                 "PluginEntry",
                 "AppInitializer",
                 "注册表和默认字体初始化完成",
-                new Dictionary<string, object?> { ["isFirstRun"] = isFirstRun });
-            if (isFirstRun)
+                new Dictionary<string, object?>
+                {
+                    ["state"] = initResult.State.ToString(),
+                    ["isFirstInstall"] = initResult.IsFirstInstall,
+                    ["awsSuppressionWarningShown"] = initResult.AwsSuppressionWarningShown
+                });
+
+            if (initResult.ShouldCheckAwsSuppression)
+            {
+                WarnIfAwsSuppressionNotConfigured(initResult, log);
+            }
+
+            if (initResult.ShouldSkipRuntimeStartup)
             {
                 // 首次通过 NETLOAD 加载：CAD 已启动，Hook 无法拦截已加载的字体。
                 // 仅完成注册表写入和字体部署，提示用户重启 CAD 后自动生效。
@@ -153,7 +165,7 @@ public abstract class PluginEntryBase : IExtensionApplication
                     "PluginEntry",
                     "RuntimeStartup",
                     "首次加载跳过 Hook 安装、文档事件注册和替换调度",
-                    new Dictionary<string, object?> { ["isFirstRun"] = true });
+                    new Dictionary<string, object?> { ["state"] = initResult.State.ToString() });
                 log.Info("首次加载完成，默认替换字体已部署。请重启 CAD 使插件自动生效。");
                 log.Flush();
                 initTimer.Stop();
@@ -161,7 +173,7 @@ public abstract class PluginEntryBase : IExtensionApplication
                     "PluginEntry",
                     "Initialize",
                     "插件首次加载初始化完成",
-                    new Dictionary<string, object?> { ["isFirstRun"] = true },
+                    new Dictionary<string, object?> { ["state"] = initResult.State.ToString() },
                     initTimer.ElapsedMilliseconds);
                 return;
             }
@@ -204,7 +216,7 @@ public abstract class PluginEntryBase : IExtensionApplication
                 "PluginEntry",
                 "Initialize",
                 "插件初始化完成",
-                new Dictionary<string, object?> { ["isFirstRun"] = false },
+                new Dictionary<string, object?> { ["state"] = initResult.State.ToString() },
                 initTimer.ElapsedMilliseconds);
         }
         catch (System.Exception ex)
@@ -218,6 +230,66 @@ public abstract class PluginEntryBase : IExtensionApplication
                 durationMs: initTimer.ElapsedMilliseconds);
             log.Error("插件初始化失败", ex);
             log.Flush();
+        }
+    }
+
+    private static void WarnIfAwsSuppressionNotConfigured(PluginInitializationResult initResult, LogService log)
+    {
+        if (int.TryParse(PlatformManager.Platform.VersionName, out int versionYear) && versionYear < 2018)
+        {
+            DiagnosticLogger.Skip(
+                "PluginEntry",
+                "EvaluateAwsSuppression",
+                "AutoCAD 2013-2017 不使用该 FixedProfile.aws 缺失字体对话框抑制流程",
+                new Dictionary<string, object?> { ["version"] = PlatformManager.Platform.VersionName });
+            return;
+        }
+
+        try
+        {
+            var suppressionState = Diagnostics.AwsHideableDialogPatcher.GetUnresolvedFontDialogSuppressionState();
+            DiagnosticLogger.Ok(
+                "PluginEntry",
+                "EvaluateAwsSuppression",
+                "缺失 SHX 弹窗抑制状态检测完成",
+                new Dictionary<string, object?>
+                {
+                    ["state"] = initResult.State.ToString(),
+                    ["awsSuppressionWarningShown"] = initResult.AwsSuppressionWarningShown,
+                    ["suppressionState"] = suppressionState.ToString()
+                });
+
+            if (suppressionState == AwsDialogSuppressionState.Correct)
+            {
+                return;
+            }
+
+            log.WarningFinal("当前CAD软件SHX缺失弹窗未关闭，如果需要关闭请关闭 CAD 后运行 AFR 部署工具修复安装。");
+            MarkAwsSuppressionWarningShownSafely();
+        }
+        catch (System.Exception ex)
+        {
+            DiagnosticLogger.Fail(
+                "PluginEntry",
+                "EvaluateAwsSuppression",
+                "缺失 SHX 弹窗抑制状态检测失败",
+                ex,
+                new Dictionary<string, object?> { ["state"] = initResult.State.ToString() });
+            log.WarningFinal("当前CAD软件SHX缺失弹窗未关闭，如果需要关闭请关闭 CAD 后运行 AFR 部署工具修复安装。");
+            MarkAwsSuppressionWarningShownSafely();
+        }
+    }
+
+    private static void MarkAwsSuppressionWarningShownSafely()
+    {
+        try
+        {
+            AppInitializer.MarkAwsSuppressionWarningShown();
+            DiagnosticLogger.Ok("PluginEntry", "MarkAwsSuppressionWarningShown", "缺失 SHX 弹窗抑制提示已标记为显示过");
+        }
+        catch (System.Exception ex)
+        {
+            DiagnosticLogger.Fail("PluginEntry", "MarkAwsSuppressionWarningShown", "缺失 SHX 弹窗抑制提示标记写入失败", ex);
         }
     }
 

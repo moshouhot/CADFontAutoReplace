@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using AFR.Deployer.Infrastructure;
 using AFR.Deployer.Models;
 using AFR.Deployer.Services;
+using AFR.HostIntegration;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -626,13 +627,16 @@ internal sealed partial class MainViewModel : ObservableObject
             await Task.Run(() =>
             {
                 // 收集安装成功的 CAD 版本，稍后统一处理 FixedProfile.aws。
-                var patchedDescriptors = new HashSet<CadDescriptor>();
+                var awsOverrideDescriptors = new HashSet<CadDescriptor>();
 
                 foreach (var entry in selected)
                 {
                     var key = entry.Installation.Descriptor.Version;
                     var fresh = freshResults.GetValueOrDefault(key, entry.Installation);
                     DebugLogService.Info($"Install version begin {fresh.Descriptor.DisplayName}; plugin={fresh.Descriptor.PluginFileName}; profiles={fresh.ProfileSubKeys.Count}; installedDll={fresh.InstalledDllPath ?? "<none>"}");
+                    bool shouldOverrideAws = fresh.Status is PluginDeployStatus.NotInstalled
+                                                          or PluginDeployStatus.InstalledOutdated
+                                                          or PluginDeployStatus.DllMissing;
 
                     if (!PluginDeployer.TryInstall(fresh, out var err, out var installWarning))
                     {
@@ -642,7 +646,8 @@ internal sealed partial class MainViewModel : ObservableObject
                     else
                     {
                         successes++;
-                        patchedDescriptors.Add(fresh.Descriptor);
+                        if (shouldOverrideAws)
+                            awsOverrideDescriptors.Add(fresh.Descriptor);
                         DebugLogService.Info($"Install version success {fresh.Descriptor.DisplayName}");
                         if (!string.IsNullOrWhiteSpace(installWarning))
                         {
@@ -668,11 +673,12 @@ internal sealed partial class MainViewModel : ObservableObject
                 }
 
                 // 抑制“缺少 SHX 文件”对话框：在全部写入完成后统一处理 FixedProfile.aws。
-                foreach (var desc in patchedDescriptors)
+                foreach (var desc in awsOverrideDescriptors)
                 {
                     try
                     {
-                        AwsHideableDialogPatcher.Apply(desc);
+                        if (AwsHideableDialogPatcher.GetSuppressionState(desc) != AwsDialogSuppressionState.Correct)
+                            AwsHideableDialogPatcher.ApplyInstallOrUpdateOverride(desc);
                         DebugLogService.Info($"Install AWS patch success {desc.DisplayName}");
                     }
                     catch (Exception ex)

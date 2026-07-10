@@ -6,6 +6,32 @@ using AFR.Services;
 
 namespace AFR.Hosting;
 
+internal enum PluginInitializationState
+{
+    NormalRun = 0,
+    CompletingStagedInstall = 1,
+    Updated = 2,
+    FirstInstall = 3,
+}
+
+internal sealed class PluginInitializationResult(
+    PluginInitializationState state,
+    bool awsSuppressionWarningShown)
+{
+    public PluginInitializationState State { get; } = state;
+
+    public bool AwsSuppressionWarningShown { get; } = awsSuppressionWarningShown;
+
+    public bool IsFirstInstall => State == PluginInitializationState.FirstInstall;
+
+    public bool IsInstallOrUpdate => State is PluginInitializationState.FirstInstall
+                                           or PluginInitializationState.Updated;
+
+    public bool ShouldCheckAwsSuppression => IsInstallOrUpdate && !AwsSuppressionWarningShown;
+
+    public bool ShouldSkipRuntimeStartup => State == PluginInitializationState.FirstInstall;
+}
+
 /// <summary>
 /// 处理插件的首次注册表初始化、自动加载键值设置以及默认文件配置创建。
 /// <para>
@@ -25,16 +51,18 @@ internal static class AppInitializer
     private const int Managed = 1;     // 1 = 标识为托管 .NET 插件
     private const string PluginVersionValueName = "PluginVersion";
     private const string PluginBuildIdValueName = "PluginBuildId";
+    private const string ConfigSchemaVersionValueName = "ConfigSchemaVersion";
+    private const string AwsSuppressionWarningShownValueName = "AwsSuppressionWarningShown";
 
     /// <summary>
     /// 执行注册表初始化：为所有匹配的 CAD 配置文件创建/更新自动加载条目。
     /// </summary>
-    /// <returns>true 表示首次安装（至少一个配置文件是新建的），false 表示更新已有配置。</returns>
-    public static bool Initialize()
+    /// <returns>本次初始化聚合状态。</returns>
+    public static PluginInitializationResult Initialize()
     {
         var log = LogService.Instance;
-        int initializedProfiles = 0;
-        int newProfiles = 0;
+        var state = PluginInitializationState.NormalRun;
+        var awsSuppressionWarningShownForAllProfiles = true;
         try
         {
             var dllPath = GetCurrentDllPath();
@@ -42,21 +70,21 @@ internal static class AppInitializer
             var profiles = GetAcadProfiles();
             if (profiles.Count == 0)
             {
-                var versionTag = AutoCadBasePath.Substring(AutoCadBasePath.LastIndexOf('\\') + 1);
+                var versionTag = AutoCadBasePath[(AutoCadBasePath.LastIndexOf('\\') + 1)..];
                 DiagnosticLogger.Skip(
                     "AppInitializer",
                     "GetAcadProfiles",
                     "未找到有效的 AutoCAD 配置文件",
                     new Dictionary<string, object?> { ["versionTag"] = versionTag });
-                return false;
+                return new PluginInitializationResult(state, awsSuppressionWarningShownForAllProfiles);
             }
 
             foreach (var profile in profiles)
             {
                 var appPath = $@"{AutoCadBasePath}\{profile}\Applications\{AppName}";
-                initializedProfiles++;
-                if (InitializeProfile(appPath, dllPath))
-                    newProfiles++;
+                var profileResult = InitializeProfile(appPath, dllPath);
+                state = MaxState(state, profileResult.State);
+                awsSuppressionWarningShownForAllProfiles &= profileResult.AwsSuppressionWarningShown;
             }
 
             #if AFR_EXTERNAL_REGISTRY
@@ -64,17 +92,12 @@ internal static class AppInitializer
             // 定义 AFR_EXTERNAL_REGISTRY 则 NETLOAD 与部署工具共用同一份声明。
             ExternalRegistryDefaultsApplier.Apply();
             #endif
-
-            // 抑制 AutoCAD“缺少 SHX 文件”弹窗：写入 FixedProfile.aws。
-            // 仅在 AutoCAD 未运行时生效；NETLOAD 现场加载会被 Apply 内部进程检查拒绝。
-            try { Diagnostics.AwsHideableDialogPatcher.Apply(); } catch { }
         }
         catch (Exception ex)
         {
             log.Error("初始化失败", ex);
         }
-
-        return initializedProfiles > 0 && newProfiles == initializedProfiles;
+        return new PluginInitializationResult(state, awsSuppressionWarningShownForAllProfiles);
     }
 
     /// <summary>
@@ -83,14 +106,23 @@ internal static class AppInitializer
     /// </summary>
     /// <param name="appPath">该配置文件对应的完整注册表路径。</param>
     /// <param name="dllPath">插件 DLL 的完整文件路径。</param>
-    /// <returns>true 表示是首次创建（之前不存在该注册表键）。</returns>
-    private static bool InitializeProfile(string appPath, string dllPath)
+    /// <returns>该配置文件的初始化状态。</returns>
+    private static ProfileInitializationResult InitializeProfile(string appPath, string dllPath)
     {
         bool isNewKey = !RegistryService.KeyExists(Registry.CurrentUser, appPath);
         string currentPluginVersion = PluginVersionService.GetDisplayVersion();
         string currentBuildId = PluginVersionService.GetBuildId();
         string? installedPluginVersion = RegistryService.ReadString(Registry.CurrentUser, appPath, PluginVersionValueName);
         string? installedBuildId = RegistryService.ReadString(Registry.CurrentUser, appPath, PluginBuildIdValueName);
+        bool awsSuppressionWarningShown = RegistryService.ReadDword(Registry.CurrentUser, appPath, AwsSuppressionWarningShownValueName) == 1;
+        bool versionChanged = !isNewKey
+                           && (!string.Equals(installedPluginVersion, currentPluginVersion, StringComparison.Ordinal)
+                            || !string.Equals(installedBuildId, currentBuildId, StringComparison.Ordinal));
+        var state = isNewKey
+            ? PluginInitializationState.FirstInstall
+            : versionChanged
+                ? PluginInitializationState.Updated
+                : PluginInitializationState.NormalRun;
 
         // 自动加载协议键值（幂等写入，仅在值与预期不同时才写入注册表）。
         // 字体配置属于绿色目录中的 AFR.config.json，不再写入 Applications 注册表键。
@@ -119,7 +151,44 @@ internal static class AppInitializer
                     ["toBuildId"] = currentBuildId
                 });
         }
-        return isNewKey;
+
+        DiagnosticLogger.Ok(
+            "AppInitializer",
+            "InitializeProfile",
+            "配置文件初始化状态已判定",
+            new Dictionary<string, object?>
+            {
+                ["appPath"] = appPath,
+                ["state"] = state.ToString(),
+                ["awsSuppressionWarningShown"] = awsSuppressionWarningShown
+            });
+        return new ProfileInitializationResult(state, awsSuppressionWarningShown);
+    }
+
+    private static PluginInitializationState MaxState(PluginInitializationState left, PluginInitializationState right)
+        => (PluginInitializationState)Math.Max((int)left, (int)right);
+
+    /// <summary>标记缺失 SHX 弹窗抑制提示已经输出过。</summary>
+    public static void MarkAwsSuppressionWarningShown()
+    {
+        foreach (var appPath in GetAppPaths())
+        {
+            RegistryService.WriteDword(Registry.CurrentUser, appPath, AwsSuppressionWarningShownValueName, 1);
+        }
+    }
+
+    private static IEnumerable<string> GetAppPaths()
+    {
+        foreach (var profile in GetAcadProfiles())
+            yield return $@"{AutoCadBasePath}\{profile}\Applications\{AppName}";
+    }
+
+    private readonly struct ProfileInitializationResult(
+        PluginInitializationState state,
+        bool awsSuppressionWarningShown)
+    {
+        public PluginInitializationState State { get; } = state;
+        public bool AwsSuppressionWarningShown { get; } = awsSuppressionWarningShown;
     }
 
     /// <summary>

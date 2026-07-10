@@ -28,6 +28,10 @@ internal sealed class LogService : ILogService
 
     // Flush 时按分类排序后统一输出。
     private readonly List<(LogCategory Category, string Message, DateTime Timestamp)> _buffer = [];
+    // 必须压在本轮命令行输出最后的条目。
+    private readonly List<(LogCategory Category, string Message)> _tailBuffer = [];
+    // 即使其它 tail 条目稍后加入，也必须压在最末尾的操作提示。
+    private readonly List<(LogCategory Category, string Message)> _finalTailBuffer = [];
     // 每个文档只显示一次版本横幅。
     private readonly HashSet<string> _headerShownDocuments = new(StringComparer.OrdinalIgnoreCase);
 #if NET9_0_OR_GREATER
@@ -40,8 +44,23 @@ internal sealed class LogService : ILogService
 
     /// <summary>记录一条信息级别日志到缓冲区。</summary>
     public void Info(string message) => AddEntry(LogCategory.Info, message);
+    /// <summary>记录一条必须在本轮 Flush 最后输出的信息。</summary>
+    public void InfoLast(string message)
+    {
+        AddTailEntry(LogCategory.Info, message);
+    }
     /// <summary>记录一条警告级别日志到缓冲区。</summary>
     public void Warning(string message) => AddEntry(LogCategory.Warning, message);
+    /// <summary>记录一条必须在本轮 Flush 最后输出的警告。</summary>
+    public void WarningLast(string message)
+    {
+        AddTailEntry(LogCategory.Warning, message);
+    }
+    /// <summary>记录一条必须在本轮 Flush 绝对最后输出的警告。</summary>
+    public void WarningFinal(string message)
+    {
+        AddFinalTailEntry(LogCategory.Warning, message);
+    }
     /// <summary>记录一条错误级别日志到缓冲区。</summary>
     public void Error(string message) => AddEntry(LogCategory.Error, message);
     /// <summary>记录一条包含异常信息的错误级别日志到缓冲区。会自动拼接异常消息。</summary>
@@ -84,7 +103,7 @@ internal sealed class LogService : ILogService
         // 仍缺失时提醒用户走 AFRLOG 手动处理。
         int stillMissingTotal = stillMissingTrueType + stillMissingShxMain + stillMissingShxBig;
         if (stillMissingTotal > 0)
-            AddEntry(LogCategory.Warning, $"仍有 {stillMissingTotal} 个字体未成功替换，请执行 AFRLOG 手动指定替换字体");
+            WarningLast($"仍有 {stillMissingTotal} 个字体未成功替换，请执行 AFRLOG 手动指定替换字体");
     }
 
     private static (int ShxMain, int ShxBig, int TrueType) CountMissingSlots(
@@ -153,7 +172,7 @@ internal sealed class LogService : ILogService
         }
 
         if (stillMissingCount > 0)
-            AddEntry(LogCategory.Warning, $"仍有 {stillMissingCount} 个字体未成功替换，请执行 AFRLOG 手动指定替换字体");
+            WarningLast($"仍有 {stillMissingCount} 个字体未成功替换，请执行 AFRLOG 手动指定替换字体");
     }
 
     /// <summary>
@@ -166,6 +185,22 @@ internal sealed class LogService : ILogService
         lock (_lock)
         {
             _buffer.Add((category, message, DateTime.Now));
+        }
+    }
+
+    private void AddTailEntry(LogCategory category, string message)
+    {
+        lock (_lock)
+        {
+            _tailBuffer.Add((category, message));
+        }
+    }
+
+    private void AddFinalTailEntry(LogCategory category, string message)
+    {
+        lock (_lock)
+        {
+            _finalTailBuffer.Add((category, message));
         }
     }
 
@@ -202,12 +237,14 @@ internal sealed class LogService : ILogService
             // 桶索引对应 LogCategory 数值，天然按优先级输出。
             const int bucketCount = 4;
             List<string>?[] buckets = new List<string>?[bucketCount];
+            List<(LogCategory Category, string Message)>? tail = null;
+            List<(LogCategory Category, string Message)>? finalTail = null;
             bool showHeader;
             string docName;
 
             lock (_lock)
             {
-                if (_buffer.Count == 0) return;
+                if (_buffer.Count == 0 && _tailBuffer.Count == 0 && _finalTailBuffer.Count == 0) return;
                 for (int i = 0; i < _buffer.Count; i++)
                 {
                     var (category, message, _) = _buffer[i];
@@ -223,6 +260,16 @@ internal sealed class LogService : ILogService
                     (buckets[idx] ??= []).Add(formatted);
                 }
                 _buffer.Clear();
+                if (_tailBuffer.Count > 0)
+                {
+                    tail = [.. _tailBuffer];
+                    _tailBuffer.Clear();
+                }
+                if (_finalTailBuffer.Count > 0)
+                {
+                    finalTail = [.. _finalTailBuffer];
+                    _finalTailBuffer.Clear();
+                }
 
                 docName = doc?.Name ?? string.Empty;
                 showHeader = _headerShownDocuments.Add(docName);
@@ -252,8 +299,44 @@ internal sealed class LogService : ILogService
                 }
             }
 
-            // 追加换行以触发 AutoCAD 命令行刷新。
-            editor.WriteMessage("\n");
+            if (tail is not null)
+            {
+                for (int i = 0; i < tail.Count; i++)
+                {
+                    var (category, message) = tail[i];
+                    string formatted = category switch
+                    {
+                        LogCategory.Error => $"\n[错误] {message}",
+                        LogCategory.Warning => $"\n[警告] {message}",
+                        LogCategory.Info => $"\n[信息] {message}",
+                        _ => $"\n{message}"
+                    };
+                    editor.WriteMessage(formatted);
+                }
+            }
+
+            if (finalTail is not null)
+            {
+                for (int i = 0; i < finalTail.Count; i++)
+                {
+                    var (category, message) = finalTail[i];
+                    string formatted = category switch
+                    {
+                        LogCategory.Error => $"\n[错误] {message}",
+                        LogCategory.Warning => $"\n[警告] {message}",
+                        LogCategory.Info => $"\n[信息] {message}",
+                        _ => $"\n{message}"
+                    };
+                    editor.WriteMessage(i == finalTail.Count - 1 ? formatted + "\n" : formatted);
+                }
+            }
+            else
+            {
+                // 追加换行以触发 AutoCAD 命令行刷新；存在 final tail 时不再追加，
+                // 保证 final tail 提示是本轮 Flush 的最后一次输出。
+                editor.WriteMessage("\n");
+            }
+
         }
         catch
         {

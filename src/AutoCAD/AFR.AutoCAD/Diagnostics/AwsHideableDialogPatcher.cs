@@ -39,6 +39,10 @@ public static class AwsHideableDialogPatcher
     public static string ReadDialogNodeXml(string awsPath)
         => AwsHideableDialogPatcherCore.ReadDialogNodeXml(awsPath);
 
+    /// <summary>只读判断当前 CAD 版本是否已正确忽略缺少 SHX 对话框。</summary>
+    internal static AwsDialogSuppressionState GetUnresolvedFontDialogSuppressionState()
+        => AwsHideableDialogPatcherCore.GetSuppressionState(Brand, GetVersion(), GetRegistry(), Log);
+
     private static string GetVersion()    => PlatformManager.Platform.VersionName;
     private static string GetRegistry()   => PlatformManager.Platform.RegistryBasePath;
     private static void   Log(string tag, string message)
